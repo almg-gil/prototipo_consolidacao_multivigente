@@ -715,7 +715,29 @@ function normalizarParteArtigo(value){
   let s=String(value||"").trim();
   if(!s) return "";
 
-  // Ajustes simples de espaçamento para referências como §2º -> § 2º.
+  // Regra hierárquica do cadastro:
+  // §2º inciso V  -> inciso V do § 2º
+  // § 2º inciso V -> inciso V do § 2º
+  // §2 inciso V   -> inciso V do § 2º
+  //
+  // IMPORTANTE: se houver vírgula, como em "§2º, inciso V",
+  // a transformação NÃO é aplicada, pois esse caso tem outro significado.
+  const hierarquiaSemVirgula = s.match(
+    /^§\s*(\d+)\s*º?\s+inciso\s+([IVXLCDM]+)$/i
+  );
+
+  if(hierarquiaSemVirgula){
+    const numero=Number(hierarquiaSemVirgula[1]);
+    const inciso=hierarquiaSemVirgula[2].toUpperCase();
+    const rotuloParagrafo=numero>=1 && numero<=9
+      ? `§ ${numero}º`
+      : `§ ${numero}`;
+
+    return `inciso ${inciso} do ${rotuloParagrafo}`;
+  }
+
+  // Nos demais casos, apenas normaliza espaços básicos.
+  // Não reorganiza estruturas com vírgula.
   s=s.replace(/^§\s*(\d+)/, "§ $1");
   s=s.replace(/\s+/g," ").trim();
 
