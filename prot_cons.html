@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Protótipo para Consolidação Multivigente</title>
+<style>
+:root{
+  --bg:#f4f5f7;--panel:#fff;--text:#20252b;--muted:#6b7280;--line:#d7dbe2;
+  --brand:#b00017;--brand-dark:#8c0012;--brand-soft:#fdecef;--danger:#9b2c2c;--ok:#1f6b42;
+  --sidebar-w:286px;--sidebar-collapsed:76px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);font-family:Segoe UI,Arial,sans-serif;color:var(--text)}
+.shell{min-height:100vh;display:flex}
+.sidebar{width:var(--sidebar-w);background:#fff;border-right:1px solid #d7dbe2;display:flex;flex-direction:column;transition:width .2s ease;position:sticky;top:0;height:100vh;z-index:20}
+.sidebar.collapsed{width:var(--sidebar-collapsed)}
+.sidebar-header{height:68px;display:flex;align-items:center;border-bottom:3px solid var(--brand);padding:0 14px;gap:10px}
+.menu-toggle{width:38px;height:38px;border:none;background:transparent;border-radius:8px;font-size:22px;cursor:pointer;color:#333;flex:0 0 auto}
+.menu-toggle:hover{background:#f3f4f6}
+.brand-block{display:flex;align-items:center;gap:10px;min-width:0;overflow:hidden}
+.brand-mark{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.brand-mark img{width:48px;height:48px;object-fit:contain;display:block}
+.brand-text{font-size:12px;line-height:1.2;font-weight:800;white-space:normal;max-width:180px}
+.sidebar.collapsed .brand-text,.sidebar.collapsed .sidebar-title,.sidebar.collapsed .nav-copy,.sidebar.collapsed .sidebar-footer{display:none}
+.sidebar-title{padding:12px 16px 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#777}
+.side-nav{display:flex;flex-direction:column;padding:0 0 12px}
+.tabbtn{width:100%;border:none;background:#fff;color:#2c3036;padding:11px 14px;cursor:pointer;font:inherit;text-align:left;display:flex;align-items:center;gap:12px;border-left:4px solid transparent}
+.tabbtn:hover{background:#f7f7f8}
+.tabbtn.active{background:var(--brand-soft);color:var(--brand);font-weight:700;border-left-color:var(--brand)}
+.stepnum{width:30px;height:30px;border-radius:7px;background:#f1f2f4;color:#555;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto}
+.tabbtn.active .stepnum{background:var(--brand);color:#fff}
+.nav-copy{display:flex;flex-direction:column;min-width:0}
+.nav-copy strong{font-size:14px}.nav-copy span{font-size:11px;color:#727b87;margin-top:2px}
+.sidebar.collapsed .tabbtn{justify-content:center;padding:11px 8px;border-left-width:3px}
+.sidebar-footer{margin-top:auto;border-top:1px solid #e5e7eb;padding:14px 16px;font-size:11px;color:#667085}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{min-height:68px;background:var(--brand);color:#fff;display:flex;align-items:center;padding:12px 24px;box-shadow:0 2px 5px rgba(0,0,0,.12)}
+.topbar-text{display:flex;flex-direction:column;gap:4px}.topbar h1{margin:0;font-size:19px;font-weight:700}.topbar .subtitle{font-size:13px;opacity:.95}
+.app{width:100%;max-width:1500px;margin:0 auto;padding:22px 24px 40px}
+.page-intro{background:#fff;border:1px solid #e0e3e8;border-left:5px solid var(--brand);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+.page-intro b{color:var(--brand)}
+.tab{display:none}.tab.active{display:block}
+.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.f2{grid-column:span 2}.f3{grid-column:span 3}.f4{grid-column:span 4}.f6{grid-column:span 6}.f12{grid-column:span 12}
+label{display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#364152}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;border:1px solid #bcc6d1;border-radius:6px;padding:8px 9px;background:#fff}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#c84a5b;box-shadow:0 0 0 3px rgba(176,0,23,.08)}
+textarea{min-height:90px;resize:vertical}button{cursor:pointer}
+.btn{border:1px solid #a9b4c0;border-radius:6px;background:#fff;padding:8px 12px}.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn.primary:hover{background:var(--brand-dark)}
+.btn.danger{color:var(--danger);border-color:#ddb5b5}.btn.small{padding:5px 8px;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}.section-title{font-size:17px;font-weight:800;margin:0 0 14px;color:#222}
+.notice{background:#fff8e7;border:1px solid #e6cf91;color:#66531c;padding:10px 12px;border-radius:6px;font-size:13px;margin-bottom:14px}
+.info{background:#f4f6f9;border:1px solid #d9e0e9;color:#3c4b5c;padding:10px 12px;border-radius:6px;font-size:13px;margin-bottom:14px}.ok{background:#ecfdf3;border:1px solid #a7e0bd;color:#225c38;padding:10px 12px;border-radius:6px}.err{background:#fff1f2;border:1px solid #efb6be;color:#7f1d1d;padding:10px 12px;border-radius:6px}
+.device-list,.version-list{display:flex;flex-direction:column;gap:9px}.device{border:1px solid var(--line);border-radius:7px;padding:11px;background:#fff}.device-head{display:grid;grid-template-columns:140px 160px 1fr;gap:8px;margin-bottom:8px}.idtag{font:12px Consolas,monospace;background:#eef3f7;padding:5px 6px;border-radius:4px;color:#516070}.kind{font-size:11px;color:var(--muted);margin-bottom:3px}
+.card{border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:7px;background:#fff;padding:13px 14px}.card .title{font-weight:700}.card .meta{font-size:12px;color:var(--muted);margin-top:5px}.card .text{margin-top:9px;padding:9px;background:#f8fafc;border-radius:5px;white-space:pre-wrap}.card .note{margin-top:8px;font-size:13px;color:#536273}
+.portalbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px}
+.portal-layout{display:grid;grid-template-columns:220px minmax(0,900px) 240px;gap:18px;align-items:start;justify-content:center}
+.version-panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;position:sticky;top:86px;max-height:calc(100vh - 120px);overflow:auto}
+.version-panel-title{font-size:13px;font-weight:800;color:#333;margin-bottom:10px}
+.version-selector{display:flex;flex-direction:column;gap:8px}
+.altering-panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;position:sticky;top:86px;max-height:calc(100vh - 120px);overflow:auto}
+.altering-selector{display:flex;flex-direction:column;gap:8px}
+.altering-card{width:100%;border:1px solid #d5dbe4;border-radius:8px;background:#fff;padding:10px;text-align:left;cursor:pointer;transition:.15s}.altering-card:hover{border-color:#c24b5a;background:#fffafa}.altering-card.active{border-color:var(--brand);background:var(--brand-soft);box-shadow:inset 3px 0 0 var(--brand)}
+.altering-card .a-title{font-size:12px;font-weight:800;color:#2c3036}
+.altering-card .a-meta{font-size:11px;color:#6b7280;margin-top:4px;line-height:1.35}
+.altering-card .a-items{font-size:11px;color:#4b5563;margin-top:6px;line-height:1.4}
+
+.version-card{width:100%;border:1px solid #d5dbe4;border-radius:8px;background:#fff;padding:10px;text-align:left;cursor:pointer;transition:.15s}
+.version-card:hover{border-color:#c24b5a;background:#fffafa}
+.version-card.active{border-color:var(--brand);background:var(--brand-soft);box-shadow:inset 3px 0 0 var(--brand)}
+.version-card .v-title{font-size:12px;font-weight:800;color:#2c3036}
+.version-card .v-meta{font-size:11px;color:#6b7280;margin-top:3px;line-height:1.35}
+.version-card.active .v-title{color:var(--brand)}
+.portalbar .datebox{width:190px}.status{font-size:12px;font-weight:700;padding:7px 10px;border-radius:999px;background:#fff;color:var(--brand);border:1px solid #efc8cf}.portal{background:#fff;border:1px solid var(--line);border-radius:8px;padding:30px 40px;max-width:980px;margin:auto;box-shadow:0 1px 3px rgba(0,0,0,.06)}.portal h2{font-size:24px;margin:0 0 18px}.portal p{line-height:1.65;margin:12px 0}.portal .ementa{font-weight:600}.portal .nota{font-size:13px;color:#475569;margin-top:-4px}.portal .versao-anterior{text-decoration:line-through;color:#3f4852}.portal .norma-revogada,.portal .norma-revogada *{text-decoration:line-through}.portal .norma-revogada .nota,.portal .norma-revogada .nota *{text-decoration:none}.portal .versao-vigente{color:#111827}.portal .bloco-versao{margin-bottom:20px}
+pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-radius:7px;max-height:520px;overflow:auto}hr{border:none;border-top:1px solid var(--line);margin:18px 0}.empty{padding:20px;text-align:center;color:var(--muted);border:1px dashed #c6d0da;border-radius:6px}
+@media(max-width:900px){.portal-layout{grid-template-columns:1fr}.version-panel,.altering-panel{position:static;max-height:none}.version-selector,.altering-selector{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.sidebar{position:fixed;left:0;top:0;transform:translateX(0);box-shadow:3px 0 18px rgba(0,0,0,.14)}.sidebar.collapsed{transform:translateX(calc(-1 * var(--sidebar-w)));width:var(--sidebar-w)}.main{width:100%}.topbar{padding-left:20px}.grid{grid-template-columns:1fr}.f2,.f3,.f4,.f6,.f12{grid-column:span 1}.device-head{grid-template-columns:1fr}.portal{padding:22px 18px}.app{padding:16px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <button class="menu-toggle" onclick="toggleSidebar()" title="Mostrar/ocultar menu">☰</button>
+      <div class="brand-block">
+        <div class="brand-mark"><img src="data:image/png;base64,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" alt="Logo da Assembleia Legislativa de Minas Gerais"></div>
+        <div class="brand-text">ASSEMBLEIA LEGISLATIVA<br>DE MINAS GERAIS</div>
+      </div>
+    </div>
+    <div class="sidebar-title">Etapas</div>
+    <nav class="side-nav">
+      <button class="tabbtn active" data-tab="importar"><span class="stepnum">0</span><span class="nav-copy"><strong>Importar ODT</strong><span>Entrada da norma</span></span></button>
+      <button class="tabbtn" data-tab="texto"><span class="stepnum">1</span><span class="nav-copy"><strong>Texto estruturado</strong><span>Revisão da estrutura</span></span></button>
+      <button class="tabbtn" data-tab="alteracao"><span class="stepnum">2</span><span class="nav-copy"><strong>Registrar alteração</strong><span>Metadados e vínculo</span></span></button>
+      <button class="tabbtn" data-tab="redacoes"><span class="stepnum">3</span><span class="nav-copy"><strong>Redações temporais</strong><span>Histórico consolidado</span></span></button>
+      <button class="tabbtn" data-tab="portal"><span class="stepnum">4</span><span class="nav-copy"><strong>Exibição no portal</strong><span>Visualização pública</span></span></button>
+      <button class="tabbtn" data-tab="lexmltab"><span class="stepnum">5</span><span class="nav-copy"><strong>LexML</strong><span>XML gerado</span></span></button>
+      <button class="tabbtn" data-tab="sobre"><span class="stepnum">6</span><span class="nav-copy"><strong>Sobre</strong><span>Explicações sobre o protótipo</span></span></button>
+    </nav>
+    <div class="sidebar-footer">Gerência de Informação Legislativa – GIL/GDI</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-text">
+        <h1>Protótipo para Consolidação Multivigente</h1>
+        <div class="subtitle">Gerência de Informação Legislativa – GIL/GDI</div>
+      </div>
+    </header>
+    <div class="app">
+<section id="importar" class="tab active">
+    <div class="panel">
+      <p class="section-title">Importar norma em ODT</p>
+      <input id="odtFile" type="file" accept=".odt">
+      <div class="actions" style="margin-top:12px">
+        <button class="btn primary" onclick="importarODT()">Importar ODT</button>
+      </div>
+      <div id="status" class="info" style="margin-top:12px">Selecione um arquivo ODT.</div>
+      <pre id="diagnostico" style="background:#f8fafc;color:#334155;border:1px solid #d5dce5;max-height:180px"></pre>
+    </div>
+  </section>
+
+  <section id="texto" class="tab">
+    <div class="panel">
+      <p class="section-title">Texto estruturado e editável</p>
+      <div class="grid" style="margin-bottom:14px">
+        <div class="f6">
+          <label>Identificação da norma</label>
+          <input id="normaTitulo" placeholder="Ex.: Lei nº 25.292, de 10/6/2025">
+        </div>
+        <div class="f6">
+          <label>Ementa</label>
+          <input id="ementa" oninput="estrutura.ementa=this.value">
+        </div>
+      </div>
+      <div id="devices" class="device-list">Nenhum arquivo importado.</div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn primary" onclick="salvarEstrutura()">Salvar estrutura</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="alteracao" class="tab">
+    <div class="panel">
+      <p class="section-title">Registrar modificação legislativa</p>
+      <div class="grid">
+        <div class="f3">
+          <label>Tipo da norma alteradora</label>
+          <select id="tipoNorma">
+            <option>Ato das disposições constitucionais transitórias</option>
+            <option>Constituição</option>
+            <option>Decisão</option>
+            <option>Decisão Conjunta</option>
+            <option>Decisão Normativa da Presidência</option>
+            <option>Decreto</option>
+            <option>Decreto com Numeração Especial</option>
+            <option>Decreto sem Número</option>
+            <option>Decreto-Lei</option>
+            <option>Deliberação</option>
+            <option>Deliberação do Comitê Extraordinário Covid-19</option>
+            <option>Emenda à Constituição</option>
+            <option>Instrução Normativa da Diretoria-Geral</option>
+            <option selected>Lei</option>
+            <option>Lei Adicional</option>
+            <option>Lei Complementar</option>
+            <option>Lei Constitucional</option>
+            <option>Lei Delegada</option>
+            <option>Ordem de Serviço</option>
+            <option>Portaria</option>
+            <option>Portaria Conjunta</option>
+            <option>Portaria sem Número</option>
+            <option>Resolução</option>
+            <option>Resolução sem Número</option>
+          </select>
+        </div>
+        <div class="f2"><label>Número</label><input id="numeroNorma"></div>
+        <div class="f2"><label>Complemento</label><input id="complementoNorma"></div>
+        <div class="f2"><label>Ano</label><input id="anoNorma"></div>
+        <div class="f3"><label>Data da norma alteradora</label><input type="date" id="dataNorma"></div>
+
+        <div class="f3">
+          <label>Prazo para alteração</label>
+          <select id="prazoTipo" onchange="togglePrazoFields()">
+            <option value="inicio_vigencia">Início da vigência</option>
+            <option value="producao_efeitos">Produção de efeitos</option>
+            <option value="livre">Livre</option>
+          </select>
+        </div>
+
+        <div class="f3" id="prazoDataWrap">
+          <label id="prazoDataLabel">Data</label>
+          <input type="date" id="prazoData">
+        </div>
+
+        <div class="f6" id="prazoLivreWrap" style="display:none">
+          <label>Texto livre após a data da norma</label>
+          <input id="prazoLivre" placeholder="Ex.: com efeitos financeiros a partir de ...">
+        </div>
+        <div class="f2"><label>Artigo alterador</label><input id="artigoAlterador"></div>
+        <div class="f2"><label>Complemento do artigo</label><input id="complementoArtigo"></div>
+        <div class="f3"><label>Parte do artigo alterador</label><input id="parteArtigo" placeholder="Ex.: § 2º, inciso IV"></div>
+        <div class="f2">
+          <label>Comentário de vide</label>
+          <select id="comentario" onchange="toggleFields()">
+            <option>Acréscimo</option>
+            <option selected>Alteração</option>
+            <option>Alteração de denominação</option>
+            <option>Legislação relevante</option>
+            <option>Prorrogação</option>
+            <option>Ratificação</option>
+            <option>Regulamentação</option>
+            <option>Regulamentação total</option>
+            <option>Renumeração</option>
+            <option>Revigoração</option>
+            <option>Revogação total</option>
+            <option>Revogação</option>
+            <option>Sem efeito</option>
+            <option>Sem efeito (total)</option>
+            <option>Supressão</option>
+            <option>Suspensão</option>
+            <option>Suspensão total</option>
+            <option>Sustação de efeitos</option>
+            <option>Sustação total de efeitos</option>
+          </select>
+          
+        </div>
+
+        <div class="f6" id="artigosAlteradosWrap">
+          <label>Artigos alterados</label>
+          <input id="artigosAlterados">
+        </div>
+        <div class="f6" id="targetDeviceWrap">
+          <label>Dispositivo lógico vinculado</label>
+          <select id="targetDevice"></select>
+        </div>
+<div class="f4" id="novoIdWrap">
+          <label>ID lógico do dispositivo acrescentado</label>
+          <input id="novoId" placeholder="Ex.: art1_par1">
+        </div>
+        <div class="f4" id="novoRotuloWrap">
+          <label>Rótulo do dispositivo acrescentado</label>
+          <input id="novoRotulo" placeholder="Ex.: Parágrafo único">
+        </div>
+        <div class="f3" id="novoTipoWrap">
+          <label>Tipo genérico</label>
+          <select id="novoTipo">
+            <option>Parágrafo</option><option>Artigo</option><option>Inciso</option><option>Alínea</option><option>Item</option>
+          </select>
+        </div>
+
+        <div class="f12" id="novoTextoWrap">
+          <label>Nova redação / conteúdo acrescentado</label>
+          <textarea id="novoTexto"></textarea>
+        </div>
+      </div>
+
+      <div class="actions" style="margin-top:14px">
+        <button id="saveChangeBtn" class="btn primary" onclick="registerChange()">Registrar alteração</button>
+        <button id="cancelEditBtn" class="btn" onclick="cancelEditChange()" style="display:none">Cancelar edição</button>
+      </div>
+
+      <hr>
+      <p class="section-title">Alterações cadastradas</p>
+      <div id="changeList"></div>
+    </div>
+  </section>
+
+  <section id="redacoes" class="tab">
+    <div class="panel">
+      <p class="section-title">Redações temporais por dispositivo lógico</p>
+      <div id="versionList" class="version-list"></div>
+    </div>
+  </section>
+
+  <section id="portal" class="tab">
+<div class="portalbar">
+      <div class="datebox">
+        <label>Data de consulta</label>
+        <input type="date" id="consultaData" onchange="selectedPortalVersion='latest';selectedAlteringKey=null;renderPortal()">
+      </div>
+      <label style="margin-left:auto;display:flex;gap:6px;align-items:center;font-weight:500">
+        <input type="checkbox" id="multiMode" style="width:auto" checked onchange="renderPortal()">
+        Exibir consolidado multivigente
+      </label>
+      <span id="portalStatus" class="status"></span>
+    </div>
+    <div class="portal-layout">
+      <aside class="version-panel">
+        <div class="version-panel-title">Versões por data</div>
+        <div id="versionSelector" class="version-selector"></div>
+      </aside>
+
+      <div id="portalView" class="portal"></div>
+
+      <aside class="altering-panel">
+        <div class="version-panel-title">Normas alteradoras</div>
+        <div id="alteringSelector" class="altering-selector"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="lexmltab" class="tab">
+    <div class="panel">
+      <p class="section-title">LexML gerado</p>
+      <div class="actions" style="margin-bottom:10px">
+        <button class="btn primary" onclick="atualizarLexML()">Atualizar LexML</button>
+        <button class="btn" onclick="copiarLexML()">Copiar XML</button>
+        <button class="btn" onclick="baixarLexML()">Baixar XML</button>
+      </div>
+      <div id="xmlStatus" class="hint" style="margin-bottom:8px"></div>
+      <pre id="lexml">O XML aparecerá aqui depois da importação.</pre>
+    </div>
+  </section>
+
+  <section id="sobre" class="tab">
+    <div class="panel">
+      <p class="section-title">Sobre o protótipo</p>
+      <div class="info">
+        Este protótipo demonstra um fluxo integrado para importação de norma em ODT, estruturação do texto, registro de alterações legislativas, consolidação multivigente, visualização pública por data de consulta e geração de LexML.
+      </div>
+      <p>O objetivo é simular, em um único ambiente, as principais etapas do trabalho de consolidação temporal da norma.</p>
+      <p>Com ele, é possível:</p>
+      <ul>
+        <li>importar uma norma em formato ODT;</li>
+        <li>revisar a estrutura identificada, incluindo ementa, preâmbulo, articulação, fecho e assinaturas;</li>
+        <li>registrar alterações como nova redação, acréscimo e revogação, com metadados e vigência;</li>
+        <li>visualizar as redações por dispositivo lógico;</li>
+        <li>simular a exibição consolidada no portal em diferentes datas;</li>
+        <li>gerar uma saída em LexML para testes e validação.</li>
+      </ul>
+      <p>Trata-se de um ambiente de demonstração, voltado a testes de interface, fluxo e regras de consolidação, sem pretensão de substituir diretamente os sistemas oficiais.</p>
+    </div>
+  </section>
+    </div>
+  </main>
+</div>
+<script>
+let estrutura={ementa:"",preambulo:[],dispositivos:[],fecho:[],assinaturas:[]};
+let changes=JSON.parse(localStorage.getItem("integrado_changes")||"[]");
+let editingChangeId=null;
+let logs=[];
+let selectedPortalVersion="latest";
+let selectedAlteringKey=null;
+
+function log(msg){
+  logs.push(msg);
+  document.getElementById("diagnostico").textContent="Diagnóstico:\n"+logs.join("\n");
+}
+function u16(v,p){return v.getUint16(p,true)}
+function u32(v,p){return v.getUint32(p,true)}
+
+async function extrairArquivoDoZip(arrayBuffer,nomeProcurado){
+  const bytes=new Uint8Array(arrayBuffer),view=new DataView(arrayBuffer);
+  let eocd=-1,inicio=Math.max(0,bytes.length-65557);
+  for(let i=bytes.length-22;i>=inicio;i--){if(u32(view,i)===0x06054b50){eocd=i;break}}
+  if(eocd<0)throw new Error("Diretório ZIP não encontrado.");
+  const total=u16(view,eocd+10),central=u32(view,eocd+16);
+  let pos=central;
+  for(let n=0;n<total;n++){
+    if(u32(view,pos)!==0x02014b50)throw new Error("ZIP inválido.");
+    const metodo=u16(view,pos+10),compSize=u32(view,pos+20),nameLen=u16(view,pos+28),
+          extraLen=u16(view,pos+30),commentLen=u16(view,pos+32),localOff=u32(view,pos+42);
+    const nome=new TextDecoder().decode(bytes.slice(pos+46,pos+46+nameLen));
+    if(nome===nomeProcurado){
+      const localName=u16(view,localOff+26),localExtra=u16(view,localOff+28),
+            start=localOff+30+localName+localExtra,dados=bytes.slice(start,start+compSize);
+      if(metodo===0)return new TextDecoder().decode(dados);
+      if(metodo===8){
+        if(typeof DecompressionStream==="undefined")throw new Error("Navegador sem suporte a DecompressionStream.");
+        const ds=new DecompressionStream("deflate-raw");
+        const stream=new Blob([dados]).stream().pipeThrough(ds);
+        return new TextDecoder().decode(await new Response(stream).arrayBuffer());
+      }
+      throw new Error("Método de compactação não suportado: "+metodo);
+    }
+    pos+=46+nameLen+extraLen+commentLen;
+  }
+  throw new Error(nomeProcurado+" não encontrado.");
+}
+function textoElemento(el){return(el.textContent||"").replace(/\s+/g," ").trim()}
+function romanoParaNumero(r){
+  const vals={I:1,V:5,X:10,L:50,C:100,D:500,M:1000};let n=0,p=0;
+  r.toUpperCase().split("").reverse().forEach(c=>{const v=vals[c]||0;if(v<p)n-=v;else{n+=v;p=v}});
+  return n;
+}
+
+async function importarODT(){
+  logs=[];
+  const file=document.getElementById("odtFile").files[0],status=document.getElementById("status");
+  if(!file){status.className="err";status.textContent="Selecione um arquivo ODT.";return}
+  try{
+    log(`Arquivo: ${file.name} (${file.size} bytes)`);
+    const buffer=await file.arrayBuffer(); log("Arquivo lido pelo navegador.");
+    const contentXml=await extrairArquivoDoZip(buffer,"content.xml"); log(`content.xml extraído: ${contentXml.length} caracteres.`);
+    interpretarContentXml(contentXml); log(`Estrutura interpretada: ${estrutura.dispositivos.length} artigo(s).`);
+    renderEstruturaEditavel(); refreshTargets(); atualizarLexML(); renderChanges(); renderVersions(); renderPortal();
+    status.className="ok";
+    status.innerHTML=`<b>Importação concluída.</b> ${estrutura.dispositivos.length} artigo(s) identificado(s).`;
+    switchTab("texto");
+  }catch(err){
+    status.className="err";status.textContent="Erro: "+err.message;log("ERRO: "+err.message);
+  }
+}
+
+function interpretarContentXml(xmlText){
+  const xml=new DOMParser().parseFromString(xmlText,"application/xml");
+  if(xml.querySelector("parsererror"))throw new Error("content.xml inválido.");
+  const ns="urn:oasis:names:tc:opendocument:xmlns:text:1.0";
+  const paras=[...xml.getElementsByTagNameNS(ns,"p")].map(p=>textoElemento(p)).filter(Boolean);
+  if(!paras.length)throw new Error("Nenhum parágrafo encontrado.");
+
+  estrutura={ementa:paras[0],preambulo:[],dispositivos:[],fecho:[],assinaturas:[]};
+  document.getElementById("ementa").value=estrutura.ementa;
+
+  let fase="preambulo",artigoAtual=null,ultimoPaiInciso=null,ultimoDispositivo=null;
+  for(let i=1;i<paras.length;i++){
+    const t=paras[i];let m;
+    if((m=t.match(/^Art\.\s*(\d+)[ºo°]?\s*[–—-]\s*(.*)$/i))){
+      fase="articulacao";const n=Number(m[1]);
+      artigoAtual={id:`art${n}`,tipo:"Artigo",rotulo:`Art. ${n}º`,
+        caput:{id:`art${n}_cpt`,tipo:"Caput",rotulo:`Art. ${n}º`,texto:m[2].trim(),filhos:[]}};
+      estrutura.dispositivos.push(artigoAtual);ultimoPaiInciso=artigoAtual.caput;ultimoDispositivo=artigoAtual.caput;continue;
+    }
+    if((m=t.match(/^Parágrafo\s+único\s*[–—-]\s*(.*)$/i))&&artigoAtual){
+      const d={id:`${artigoAtual.id}_par1`,tipo:"Parágrafo",rotulo:"Parágrafo único",texto:m[1],filhos:[]};
+      artigoAtual.caput.filhos.push(d);ultimoPaiInciso=d;ultimoDispositivo=d;continue;
+    }
+    if((m=t.match(/^§\s*(\d+)[ºo°]?\s*[–—-]\s*(.*)$/i))&&artigoAtual){
+      const n=Number(m[1]),d={id:`${artigoAtual.id}_par${n}`,tipo:"Parágrafo",rotulo:`§ ${n}º`,texto:m[2],filhos:[]};
+      artigoAtual.caput.filhos.push(d);ultimoPaiInciso=d;ultimoDispositivo=d;continue;
+    }
+    if((m=t.match(/^([IVXLCDM]+)\s*[–—-]\s*(.*)$/))&&artigoAtual){
+      const n=romanoParaNumero(m[1]),pai=ultimoPaiInciso||artigoAtual.caput;
+      const d={id:`${pai.id}_inc${n}`,tipo:"Inciso",rotulo:m[1],texto:m[2],filhos:[]};
+      pai.filhos.push(d);ultimoDispositivo=d;continue;
+    }
+    if(/^Belo Horizonte,/i.test(t)||/^Palácio/i.test(t)){fase="final";estrutura.fecho.push(t);ultimoDispositivo=null;continue}
+    if(fase==="final"){estrutura.assinaturas.push(t);continue}
+    if(fase==="preambulo"){estrutura.preambulo.push(t);continue}
+    if(ultimoDispositivo)ultimoDispositivo.texto+=(ultimoDispositivo.texto?" ":"")+t;
+  }
+}
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function renderEstruturaEditavel(){
+  const box=document.getElementById("devices");let html="";
+  html+=`<div class="device"><div class="kind">Ementa</div><textarea oninput="estrutura.ementa=this.value;document.getElementById('ementa').value=this.value">${esc(estrutura.ementa)}</textarea></div>`;
+  html+=`<div class="device"><div class="kind">Preâmbulo</div><textarea oninput="estrutura.preambulo=[this.value]">${esc(estrutura.preambulo.join("\n"))}</textarea></div>`;
+  estrutura.dispositivos.forEach((art,ai)=>{
+    html+=`<div class="device">
+      <div class="device-head">
+        <div><div class="kind">ID do artigo</div><div class="idtag">${esc(art.id)}</div></div>
+        <div><label>Tipo</label><input value="Artigo" disabled></div>
+        <div><label>Rótulo</label><input value="${esc(art.rotulo)}" oninput="estrutura.dispositivos[${ai}].rotulo=this.value;estrutura.dispositivos[${ai}].caput.rotulo=this.value"></div>
+      </div>
+      <label>Texto do caput — ${esc(art.caput.id)}</label>
+      <textarea oninput="estrutura.dispositivos[${ai}].caput.texto=this.value">${esc(art.caput.texto)}</textarea>
+      ${renderFilhosEditaveis(art.caput.filhos,ai)}
+    </div>`;
+  });
+  html+=`<div class="device"><div class="kind">Fecho</div><textarea oninput="estrutura.fecho=[this.value]">${esc(estrutura.fecho.join("\n"))}</textarea></div>`;
+  html+=`<div class="device"><div class="kind">Assinaturas</div><textarea oninput="estrutura.assinaturas=this.value.split(/\n+/).filter(Boolean)">${esc(estrutura.assinaturas.join("\n"))}</textarea></div>`;
+  box.innerHTML=html;
+}
+function renderFilhosEditaveis(filhos,ai){
+  let html="";
+  filhos.forEach((d,fi)=>{
+    html+=`<div style="margin:12px 0 0 24px;padding-left:12px;border-left:3px solid #dbe3eb">
+      <div class="device-head">
+        <div><div class="kind">ID</div><div class="idtag">${esc(d.id)}</div></div>
+        <div><label>Tipo</label><input value="${esc(d.tipo)}" disabled></div>
+        <div><label>Rótulo</label><input value="${esc(d.rotulo)}" oninput="estrutura.dispositivos[${ai}].caput.filhos[${fi}].rotulo=this.value"></div>
+      </div>
+      <textarea oninput="estrutura.dispositivos[${ai}].caput.filhos[${fi}].texto=this.value">${esc(d.texto)}</textarea>
+    </div>`;
+  });
+  return html;
+}
+function salvarEstrutura(){refreshTargets();atualizarLexML();renderVersions();renderPortal();alert("Estrutura salva no protótipo.")}
+
+function flatDevices(){
+  // Lista completa para seleção técnica no cadastro de alterações.
+  // Inclui também elementos fora da Articulação, como a Ementa.
+  const out=[
+    {id:"ementa",type:"Ementa",label:"Ementa",text:estrutura.ementa}
+  ];
+
+  estrutura.dispositivos.forEach(art=>{
+    out.push({id:art.id,type:"Artigo",label:art.rotulo,text:art.caput.texto});
+    out.push({id:art.caput.id,type:"Caput",label:art.rotulo,text:art.caput.texto,parentId:art.id});
+    (art.caput.filhos||[]).forEach(f=>{
+      out.push({id:f.id,type:f.tipo,label:f.rotulo,text:f.texto,parentId:art.id});
+      (f.filhos||[]).forEach(ff=>out.push({id:ff.id,type:ff.tipo,label:ff.rotulo,text:ff.texto,parentId:f.id}));
+    });
+  });
+  return out;
+}
+
+function displayDevices(){
+  // Lista usada para versionamento lógico.
+  // A ementa também pode receber nova redação.
+  const out=[
+    {id:"ementa",type:"Ementa",label:"Ementa",text:estrutura.ementa}
+  ];
+  estrutura.dispositivos.forEach(art=>{
+    out.push({
+      id:art.id,
+      type:"Artigo",
+      label:art.rotulo,
+      text:art.caput.texto,
+      caputId:art.caput.id
+    });
+    (art.caput.filhos||[]).forEach(f=>{
+      out.push({id:f.id,type:f.tipo,label:f.rotulo,text:f.texto,parentId:art.id});
+      (f.filhos||[]).forEach(ff=>out.push({id:ff.id,type:ff.tipo,label:ff.rotulo,text:ff.texto,parentId:f.id}));
+    });
+  });
+  return out;
+}
+
+function displayIdForTarget(id){
+  // Se a alteração for cadastrada diretamente no caput, ela afeta
+  // o bloco visual do artigo sem criar uma segunda exibição.
+  const caput=flatDevices().find(d=>d.id===id && d.type==="Caput");
+  return caput?.parentId || id;
+}
+
+function displayText(v){
+  const texto=String(v.text||"").trim();
+  if(v.type==="Artigo"){
+    // Nova redação pode ter sido colada já com "Art. Xº –".
+    if(/^Art\.\s*\d+/i.test(texto)) return texto;
+    return `${v.label} – ${texto}`;
+  }
+  if(v.label && texto.toLowerCase().startsWith(String(v.label).toLowerCase())) return texto;
+  if(v.type==="Parágrafo" || v.type==="Inciso" || v.type==="Alínea" || v.type==="Item"){
+    return `${v.label} – ${texto}`;
+  }
+  return texto;
+}
+function refreshTargets(){
+  const s=document.getElementById("targetDevice"),old=s.value,arr=flatDevices();
+  s.innerHTML=arr.map(d=>`<option value="${esc(d.id)}">${esc(d.label)} — ${esc(d.id)} — ${esc(d.type)}</option>`).join("");
+  if([...s.options].some(o=>o.value===old))s.value=old;
+}
+function genericTypeFromId(id){return flatDevices().find(d=>d.id===id)?.type||"Dispositivo"}
+const OPERACAO_POR_COMENTARIO = {
+  "Acréscimo":"acrescimo",
+  "Alteração":"nova_redacao",
+  "Alteração de denominação":"nova_redacao",
+  "Renumeração":"nova_redacao",
+  "Revogação":"revogacao",
+  "Revogação total":"revogacao_total",
+  "Supressão":"revogacao"
+};
+
+function operacaoDoComentario(comentario){
+  return OPERACAO_POR_COMENTARIO[comentario] || "sem_operacao";
+}
+
+function operationForChange(ch){
+  // A operação é sempre derivada do comentário de vide.
+  // Mantém compatibilidade com registros antigos somente quando necessário.
+  return operacaoDoComentario(ch.comentario) !== "sem_operacao"
+    ? operacaoDoComentario(ch.comentario)
+    : (ch.operacao || "sem_operacao");
+}
+
+function syncOperationFromComment(){
+  toggleFields();
+}
+function syncCommentFromOperation(){
+  // Mantida apenas por compatibilidade com versões anteriores.
+}
+
+function toggleFields(){
+  const comentario=document.getElementById("comentario").value;
+  const op=operacaoDoComentario(comentario);
+  const isAdd=op==="acrescimo";
+  const isTotalRev=op==="revogacao_total";
+  const precisaTexto=op==="nova_redacao" || op==="acrescimo";
+
+  document.getElementById("novoIdWrap").style.display=isAdd?"block":"none";
+  document.getElementById("novoRotuloWrap").style.display=isAdd?"block":"none";
+  document.getElementById("novoTipoWrap").style.display=isAdd?"block":"none";
+  document.getElementById("novoTextoWrap").style.display=precisaTexto?"block":"none";
+
+  // Revogação total afeta a norma inteira: não há dispositivo-alvo.
+  document.getElementById("targetDeviceWrap").style.display=isTotalRev?"none":"block";
+  document.getElementById("artigosAlteradosWrap").style.display=isTotalRev?"none":"block";
+
+  if(isTotalRev){
+    document.getElementById("targetDevice").value="";
+    document.getElementById("artigosAlterados").value="";
+  }
+}
+function fmtDate(iso){if(!iso)return"imediata";const[y,m,d]=iso.split("-");return`${d}/${m}/${y}`}
+function fmtDateNote(iso){if(!iso)return"";const[y,m,d]=iso.split("-").map(Number);const dia=d===1?"1º":String(d);return`${dia}/${m}/${y}`}
+
+function togglePrazoFields(){
+  const tipo=document.getElementById("prazoTipo").value;
+  const dataWrap=document.getElementById("prazoDataWrap");
+  const livreWrap=document.getElementById("prazoLivreWrap");
+  const label=document.getElementById("prazoDataLabel");
+
+  const usaData=tipo==="inicio_vigencia" || tipo==="producao_efeitos";
+  dataWrap.style.display=usaData?"block":"none";
+  livreWrap.style.display=tipo==="livre"?"block":"none";
+
+  label.textContent=tipo==="producao_efeitos" ? "Data de produção de efeitos" : "Data de início da vigência";
+}
+
+function dataAlteracao(ch){
+  if(ch.prazoTipo==="inicio_vigencia" && ch.prazoData){
+    return ch.prazoData;
+  }
+  if(ch.prazoTipo==="producao_efeitos" && ch.prazoData){
+    return ch.prazoData;
+  }
+
+  // Se não houver data específica de vigência/efeitos, usa a data
+  // da norma alteradora como referência cronológica.
+  if(ch.dataNorma){
+    return ch.dataNorma;
+  }
+
+  // Compatibilidade com registros antigos.
+  return ch.vigencia || "";
+}
+
+function complementoPrazoNota(ch){
+  if(ch.prazoTipo==="inicio_vigencia" && ch.prazoData){
+    return `, em vigor a partir de ${fmtDateNote(ch.prazoData)}`;
+  }
+  if(ch.prazoTipo==="producao_efeitos" && ch.prazoData){
+    return `, com produção de efeitos a partir de ${fmtDateNote(ch.prazoData)}`;
+  }
+  if(ch.prazoTipo==="livre" && String(ch.prazoLivre||"").trim()){
+    const livre=String(ch.prazoLivre).trim();
+    return /^[,;:.]/.test(livre) ? livre : `, ${livre}`;
+  }
+  return "";
+}
+function prevDay(iso){const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)}
+
+function formatNormNumber(value){
+  const s=String(value||"").replace(/\D/g,"");
+  if(!s) return String(value||"");
+  return Number(s).toLocaleString("pt-BR");
+}
+
+function formatArtigoRef(value){
+  const s=String(value||"").trim();
+  if(!s) return "";
+  const n=Number(s.replace(/\D/g,""));
+  if(Number.isFinite(n) && n>0){
+    return n>=1 && n<=9 ? `${n}º` : `${n}`;
+  }
+  return s;
+}
+
+const GENERO_TIPO_NORMA = {
+  "Ato das disposições constitucionais transitórias":"m",
+  "Constituição":"f",
+  "Decisão":"f",
+  "Decisão Conjunta":"f",
+  "Decisão Normativa da Presidência":"f",
+  "Decreto":"m",
+  "Decreto com Numeração Especial":"m",
+  "Decreto sem Número":"m",
+  "Decreto-Lei":"m",
+  "Deliberação":"f",
+  "Deliberação do Comitê Extraordinário Covid-19":"f",
+  "Emenda à Constituição":"f",
+  "Instrução Normativa da Diretoria-Geral":"f",
+  "Lei":"f",
+  "Lei Adicional":"f",
+  "Lei Complementar":"f",
+  "Lei Constitucional":"f",
+  "Lei Delegada":"f",
+  "Ordem de Serviço":"f",
+  "Portaria":"f",
+  "Portaria Conjunta":"f",
+  "Portaria sem Número":"f",
+  "Resolução":"f",
+  "Resolução sem Número":"f"
+};
+
+function preposicaoNorma(tipoNorma){
+  return GENERO_TIPO_NORMA[tipoNorma]==="m" ? "do" : "da";
+}
+
+function notaNorma(ch){
+  const comp=ch.complemento?` ${ch.complemento}`:"";
+  const data=ch.dataNorma?`, de ${fmtDateNote(ch.dataNorma)}`:"";
+  return `${ch.tipoNorma} nº ${formatNormNumber(ch.numero)}${comp}${data}`;
+}
+const GENERO_DISPOSITIVO = {
+  "Artigo":"m",
+  "Caput":"m",
+  "Parágrafo":"m",
+  "Inciso":"m",
+  "Item":"m",
+  "Alínea":"f",
+  "Ementa":"f"
+};
+
+function participioPorGenero(baseMasc,baseFem,type){
+  return GENERO_DISPOSITIVO[type]==="f" ? baseFem : baseMasc;
+}
+
+function normalizarParteArtigo(value){
+  let s=String(value||"").trim();
+  if(!s) return "";
+
+  // Ajustes simples de espaçamento para referências como §2º -> § 2º.
+  s=s.replace(/^§\s*(\d+)/, "§ $1");
+  s=s.replace(/\s+/g," ").trim();
+
+  return s;
+}
+
+function referenciaAlteradora(ch){
+  const artigo=ch.artigoAlterador
+    ? `art. ${formatArtigoRef(ch.artigoAlterador)}${ch.complementoArtigo ? " "+ch.complementoArtigo : ""}`
+    : "dispositivo";
+
+  const parte=normalizarParteArtigo(ch.parteArtigo);
+
+  return parte ? `${parte} do ${artigo}` : artigo;
+}
+
+function noteFor(ch,type){
+  const ref=referenciaAlteradora(ch);
+  const norma=notaNorma(ch);
+  const prep=preposicaoNorma(ch.tipoNorma);
+  const op=operationForChange(ch);
+
+  const prazo=complementoPrazoNota(ch);
+
+  if(op==="nova_redacao")
+    return`(${type} com redação dada pelo ${ref} ${prep} ${norma}${prazo}.)`;
+
+  if(op==="acrescimo"){
+    const p=participioPorGenero("acrescentado","acrescentada",type);
+    return`(${type} ${p} pelo ${ref} ${prep} ${norma}${prazo}.)`;
+  }
+
+  if(op==="revogacao"){
+    const p=participioPorGenero("revogado","revogada",type);
+    return`(${type} ${p} pelo ${ref} ${prep} ${norma}${prazo}.)`;
+  }
+
+  return"";
+}
+function originalNote(type){return`(${type} com redação na versão original.)`}
+
+function identificarTipoDaNormaPeloTitulo(titulo){
+  const t=String(titulo||"").trim().toLowerCase();
+  const tipos=Object.keys(GENERO_TIPO_NORMA).sort((a,b)=>b.length-a.length);
+  return tipos.find(tipo=>t.startsWith(tipo.toLowerCase())) || "";
+}
+
+function notaRevogacaoTotal(ch){
+  const identificacao=String(document.getElementById("normaTitulo").value||"Norma").trim();
+  const tipoRevogada=identificarTipoDaNormaPeloTitulo(identificacao);
+  const genero=GENERO_TIPO_NORMA[tipoRevogada]||"f";
+  const artigo=genero==="m" ? "O" : "A";
+  const participio=genero==="m" ? "revogado" : "revogada";
+  const ref=referenciaAlteradora(ch);
+  const normaAlteradora=notaNorma(ch);
+  const prep=preposicaoNorma(ch.tipoNorma);
+  const idNorma=identificacao.replace(/\s*,\s*$/,"");
+  const prazo=complementoPrazoNota(ch);
+  return `(${artigo} ${idNorma}, foi ${participio} pelo ${ref} ${prep} ${normaAlteradora}${prazo}.)`;
+}
+
+function collectChangeForm(){
+  return {
+    tipoNorma:document.getElementById("tipoNorma").value,
+    numero:document.getElementById("numeroNorma").value.trim(),
+    complemento:document.getElementById("complementoNorma").value.trim(),
+    ano:document.getElementById("anoNorma").value.trim(),
+    dataNorma:document.getElementById("dataNorma").value,
+    prazoTipo:document.getElementById("prazoTipo").value,
+    prazoData:document.getElementById("prazoData").value,
+    prazoLivre:document.getElementById("prazoLivre").value.trim(),
+    artigoAlterador:document.getElementById("artigoAlterador").value.trim(),
+    complementoArtigo:document.getElementById("complementoArtigo").value.trim(),
+    parteArtigo:document.getElementById("parteArtigo").value.trim(),
+    comentario:document.getElementById("comentario").value,
+    artigosAlterados:document.getElementById("artigosAlterados").value.trim(),
+    target:document.getElementById("targetDevice").value,
+    operacao:operacaoDoComentario(document.getElementById("comentario").value),
+    novoId:document.getElementById("novoId").value.trim(),
+    novoRotulo:document.getElementById("novoRotulo").value.trim(),
+    novoTipo:document.getElementById("novoTipo").value,
+    novoTexto:document.getElementById("novoTexto").value.trim()
+  };
+}
+
+function registerChange(){
+  const dados=collectChangeForm();
+
+  if(!dados.numero||!dados.ano){
+    alert("Preencha número e ano da norma alteradora.");
+    return;
+  }
+
+  if(dados.operacao!=="revogacao_total" && !dados.target){
+    alert("Selecione o dispositivo lógico vinculado.");
+    return;
+  }
+
+  if((dados.operacao==="nova_redacao"||dados.operacao==="acrescimo")&&!dados.novoTexto){
+    alert("Informe o texto.");
+    return;
+  }
+
+  if(dados.operacao==="acrescimo"&&!dados.novoId){
+    alert("Informe o ID do novo dispositivo.");
+    return;
+  }
+
+  if(editingChangeId){
+    const idx=changes.findIndex(c=>c.id===editingChangeId);
+    if(idx>=0){
+      changes[idx]={...changes[idx],...dados,id:editingChangeId};
+    }
+  }else{
+    changes.push({
+      id:"chg_"+Date.now(),
+      ...dados
+    });
+  }
+
+  const estavaEditando=!!editingChangeId;
+  localStorage.setItem("integrado_changes",JSON.stringify(changes));
+  cancelEditChange(false);
+  renderChanges();
+  renderVersions();
+  renderPortal();
+
+  alert(estavaEditando ? "Alteração atualizada." : "Alteração registrada.");
+}
+
+function editChange(id){
+  const ch=changes.find(c=>c.id===id);
+  if(!ch)return;
+
+  editingChangeId=id;
+
+  document.getElementById("tipoNorma").value=ch.tipoNorma||"Lei";
+  document.getElementById("numeroNorma").value=ch.numero||"";
+  document.getElementById("complementoNorma").value=ch.complemento||"";
+  document.getElementById("anoNorma").value=ch.ano||"";
+  document.getElementById("dataNorma").value=ch.dataNorma||"";
+  document.getElementById("prazoTipo").value=ch.prazoTipo||"inicio_vigencia";
+  document.getElementById("prazoData").value=ch.prazoData||ch.vigencia||"";
+  document.getElementById("prazoLivre").value=ch.prazoLivre||"";
+  togglePrazoFields();
+  document.getElementById("artigoAlterador").value=ch.artigoAlterador||"";
+  document.getElementById("complementoArtigo").value=ch.complementoArtigo||"";
+  document.getElementById("parteArtigo").value=ch.parteArtigo||"";
+  document.getElementById("comentario").value=ch.comentario||"Alteração";
+  document.getElementById("artigosAlterados").value=ch.artigosAlterados||"";
+
+  refreshTargets();
+  document.getElementById("targetDevice").value=ch.target||"";
+
+  document.getElementById("novoId").value=ch.novoId||"";
+  document.getElementById("novoRotulo").value=ch.novoRotulo||"";
+  document.getElementById("novoTipo").value=ch.novoTipo||"Parágrafo";
+  document.getElementById("novoTexto").value=ch.novoTexto||"";
+
+  toggleFields();
+
+  document.getElementById("saveChangeBtn").textContent="Salvar alterações";
+  document.getElementById("cancelEditBtn").style.display="inline-block";
+
+  switchTab("alteracao");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function clearChangeForm(){
+  document.getElementById("numeroNorma").value="";
+  document.getElementById("complementoNorma").value="";
+  document.getElementById("anoNorma").value="";
+  document.getElementById("dataNorma").value="";
+  document.getElementById("prazoTipo").value="inicio_vigencia";
+  document.getElementById("prazoData").value="";
+  document.getElementById("prazoLivre").value="";
+  togglePrazoFields();
+  document.getElementById("artigoAlterador").value="";
+  document.getElementById("complementoArtigo").value="";
+  document.getElementById("parteArtigo").value="";
+  document.getElementById("artigosAlterados").value="";
+  document.getElementById("novoId").value="";
+  document.getElementById("novoRotulo").value="";
+  document.getElementById("novoTexto").value="";
+  document.getElementById("comentario").value="Alteração";
+  toggleFields();
+}
+
+function cancelEditChange(clearForm=true){
+  editingChangeId=null;
+  document.getElementById("saveChangeBtn").textContent="Registrar alteração";
+  document.getElementById("cancelEditBtn").style.display="none";
+  if(clearForm) clearChangeForm();
+}
+
+function renderChanges(){
+  const el=document.getElementById("changeList");
+  if(!changes.length){el.innerHTML='<div class="empty">Nenhuma alteração cadastrada.</div>';return}
+  el.innerHTML=changes.map(ch=>{
+    const op=operationForChange(ch);
+    const type=op==="acrescimo"?ch.novoTipo:genericTypeFromId(ch.target);
+    const alvo=op==="revogacao_total"?"Norma inteira":ch.target;
+    const nota=op==="revogacao_total"?notaRevogacaoTotal(ch):noteFor(ch,type);
+    return `<div class="card"><div class="title">${esc(ch.comentario)} — ${esc(notaNorma(ch))}</div>
+      <div class="meta">Alvo: ${esc(alvo)} · Prazo: ${esc(
+        ch.prazoTipo==="inicio_vigencia" && ch.prazoData ? "Início da vigência em "+fmtDate(ch.prazoData) :
+        ch.prazoTipo==="producao_efeitos" && ch.prazoData ? "Produção de efeitos em "+fmtDate(ch.prazoData) :
+        ch.prazoTipo==="livre" && ch.prazoLivre ? ch.prazoLivre :
+        ch.vigencia ? fmtDate(ch.vigencia) : "não informado"
+      )}</div>
+      ${ch.novoTexto?`<div class="text">${esc(ch.novoTexto)}</div>`:""}
+      ${nota?`<div class="note">${esc(nota)}</div>`:""}
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn small" onclick="editChange('${ch.id}')">Editar</button>
+        <button class="btn small danger" onclick="removeChange('${ch.id}')">Excluir</button>
+      </div></div>`;
+  }).join("");
+}
+function removeChange(id){changes=changes.filter(c=>c.id!==id);localStorage.setItem("integrado_changes",JSON.stringify(changes));renderChanges();renderVersions();renderPortal()}
+
+function buildVersions(){
+  const map={};
+
+  // O portal versiona apenas blocos que devem aparecer uma vez.
+  // Artigo representa visualmente o seu caput.
+  displayDevices().forEach(d=>{
+    if(!map[d.id]) map[d.id]=[{
+      versionId:d.id+"_r1",
+      logicalId:d.id,
+      label:d.label,
+      type:d.type,
+      noteType:d.type,
+      text:d.text,
+      start:"",
+      end:"",
+      origin:"original",
+      source:null
+    }];
+  });
+
+  [...changes].sort((a,b)=>(dataAlteracao(a)||"0000").localeCompare(dataAlteracao(b)||"0000")).forEach(ch=>{
+    const op=operationForChange(ch);
+    if(op==="revogacao_total") return;
+
+    const targetId=displayIdForTarget(ch.target);
+    const noteType=genericTypeFromId(ch.target);
+
+    if(op==="nova_redacao"){
+      const arr=map[targetId]||[];
+      if(!arr.length)return;
+      const cur=arr[arr.length-1];
+      const dataEfetiva=dataAlteracao(ch);
+      if(dataEfetiva)cur.end=prevDay(dataEfetiva);
+      arr.push({
+        versionId:targetId+"_r"+(arr.length+1),
+        logicalId:targetId,
+        label:cur.label,
+        type:cur.type,
+        noteType:noteType,
+        text:ch.novoTexto,
+        start:dataAlteracao(ch)||"",
+        end:"",
+        origin:"alterada",
+        source:ch
+      });
+
+    }else if(op==="revogacao"){
+      const arr=map[targetId]||[];
+      if(!arr.length)return;
+      const cur=arr[arr.length-1];
+      const dataEfetiva=dataAlteracao(ch);
+      if(dataEfetiva)cur.end=prevDay(dataEfetiva);
+      cur.revokedBy=ch;
+      cur.revokedAt=ch.vigencia||"";
+      cur.noteType=noteType;
+
+    }else if(op==="acrescimo"){
+      map[ch.novoId]=[{
+        versionId:ch.novoId+"_r1",
+        logicalId:ch.novoId,
+        label:ch.novoRotulo||ch.novoTipo,
+        type:ch.novoTipo,
+        noteType:ch.novoTipo,
+        text:ch.novoTexto,
+        start:dataAlteracao(ch)||"",
+        end:"",
+        origin:"acrescentada",
+        source:ch,
+        insertedAfter:targetId
+      }];
+    }
+  });
+  return map;
+}
+function renderVersions(){
+  const map=buildVersions(),el=document.getElementById("versionList"),cards=[];
+  Object.entries(map).forEach(([id,arr])=>arr.forEach((v,i)=>{
+    const hasChange = arr.length>1 || !!v.revokedBy || v.origin!=="original";
+    const note = v.revokedBy
+      ? noteFor(v.revokedBy,v.noteType||v.type)
+      : (v.origin==="original"
+          ? (hasChange ? originalNote(v.noteType||v.type) : "")
+          : noteFor(v.source,v.noteType||v.type));
+    const revokedClass=v.revokedBy?"versao-anterior":"";
+
+    cards.push(`<div class="card"><div class="title">${esc(v.label)} — ${esc(id)} — redação ${i+1}</div>
+    <div class="meta">Tipo: ${esc(v.noteType||v.type)} · vigência: ${v.start?esc(fmtDate(v.start)):"original"} até ${v.end?esc(fmtDate(v.end)):"em aberto"}</div>
+    <div class="text ${revokedClass}">${esc(displayText(v))}</div>${note?`<div class="note">${esc(note)}</div>`:""}</div>`);
+  }));
+  el.innerHTML=cards.join("")||'<div class="empty">Nenhuma redação.</div>';
+}
+function activeAt(v,date){return(!v.start||date>=v.start)&&(!v.end||date<=v.end)}
+
+function revogacaoTotalAplicavel(date){
+  const totais=changes
+    .filter(ch=>operationForChange(ch)==="revogacao_total")
+    .sort((a,b)=>(dataAlteracao(a)||"0000").localeCompare(dataAlteracao(b)||"0000"));
+
+  if(!totais.length) return null;
+
+  // Sem data estruturada, a alteração é considerada imediata no protótipo.
+  return [...totais].reverse().find(ch=>!dataAlteracao(ch) || date>=dataAlteracao(ch)) || null;
+}
+
+function prazoAplicavelAte(ch,date){
+  const d=dataAlteracao(ch);
+  return !d || date==="9999-12-31" || d<=date;
+}
+
+function alteracoesDisponiveisAte(date){
+  return changes
+    .filter(ch=>operationForChange(ch)!=="sem_operacao")
+    .filter(ch=>prazoAplicavelAte(ch,date))
+    .sort((a,b)=>{
+      const da=dataAlteracao(a)||"0000-00-00";
+      const db=dataAlteracao(b)||"0000-00-00";
+      if(da!==db) return da.localeCompare(db);
+
+      const dna=a.dataNorma||"";
+      const dnb=b.dataNorma||"";
+      if(dna!==dnb) return dna.localeCompare(dnb);
+
+      return String(a.id).localeCompare(String(b.id));
+    });
+}
+
+function buildVersionsFromChanges(changesSubset){
+  const oldChanges=changes;
+  changes=changesSubset;
+  const map=buildVersions();
+  changes=oldChanges;
+  return map;
+}
+
+function versoesPortalDisponiveis(date){
+  const aplicaveis=alteracoesDisponiveisAte(date);
+
+  // Agrupa todas as alterações que passam a valer na mesma data.
+  // Assim, cada data efetiva gera uma única versão consolidada.
+  const grupos=[];
+  aplicaveis.forEach(ch=>{
+    const data=dataAlteracao(ch) || ch.dataNorma || "";
+    let grupo=grupos.find(g=>g.data===data);
+    if(!grupo){
+      grupo={data,changes:[]};
+      grupos.push(grupo);
+    }
+    grupo.changes.push(ch);
+  });
+
+  grupos.sort((a,b)=>(a.data||"0000-00-00").localeCompare(b.data||"0000-00-00"));
+
+  const versoes=[{
+    key:"original",
+    title:"Texto original",
+    meta:"Redação originária",
+    changes:[]
+  }];
+
+  let acumuladas=[];
+  grupos.forEach((grupo,index)=>{
+    acumuladas=[...acumuladas,...grupo.changes];
+
+    const dataLabel=grupo.data ? fmtDateNote(grupo.data) : "";
+    const normas=[...new Set(grupo.changes.map(ch=>notaNorma(ch)))];
+
+    versoes.push({
+      key:`v_${index+1}`,
+      title:dataLabel ? `Versão em ${dataLabel}` : `Versão ${index+1}`,
+      meta:normas.length===1 ? `Após ${normas[0]}` : `Após ${normas.length} normas alteradoras`,
+      changes:[...acumuladas]
+    });
+  });
+
+  return versoes;
+}
+
+function renderVersionSelector(date){
+  const box=document.getElementById("versionSelector");
+  if(!box) return versoesPortalDisponiveis(date);
+
+  const versoes=versoesPortalDisponiveis(date);
+
+  if(!selectedAlteringKey){
+    if(selectedPortalVersion==="latest"){
+      selectedPortalVersion=versoes[versoes.length-1]?.key || "original";
+    }
+
+    if(!versoes.some(v=>v.key===selectedPortalVersion)){
+      selectedPortalVersion=versoes[versoes.length-1]?.key || "original";
+    }
+  }
+
+  box.innerHTML=versoes.map(v=>`
+    <button class="version-card ${!selectedAlteringKey && v.key===selectedPortalVersion?"active":""}" onclick="selectPortalVersion('${v.key}')">
+      <div class="v-title">${esc(v.title)}</div>
+      <div class="v-meta">${esc(v.meta)}</div>
+    </button>
+  `).join("");
+
+  return versoes;
+}
+
+function selectPortalVersion(key){
+  selectedPortalVersion=key;
+  selectedAlteringKey=null;
+  renderPortal();
+}
+
+function chaveNormaAlteradora(ch){
+  return [
+    ch.tipoNorma||"",
+    ch.numero||"",
+    ch.complemento||"",
+    ch.ano||"",
+    ch.dataNorma||""
+  ].join("|");
+}
+
+function dataEfetivaNormaAlteradora(grupo){
+  const datas=(grupo.changes||[])
+    .map(ch=>dataAlteracao(ch))
+    .filter(Boolean)
+    .sort();
+  return datas[0] || grupo.changes[0]?.dataNorma || "";
+}
+
+function gruposNormasAlteradoras(){
+  const mapa=new Map();
+
+  changes.forEach(ch=>{
+    const key=chaveNormaAlteradora(ch);
+    if(!mapa.has(key)){
+      mapa.set(key,{
+        key,
+        title:notaNorma(ch),
+        changes:[]
+      });
+    }
+    mapa.get(key).changes.push(ch);
+  });
+
+  return [...mapa.values()].sort((a,b)=>{
+    const da=dataEfetivaNormaAlteradora(a)||"0000-00-00";
+    const db=dataEfetivaNormaAlteradora(b)||"0000-00-00";
+    if(da!==db) return da.localeCompare(db);
+
+    const dsa=a.changes[0]?.dataNorma||"";
+    const dsb=b.changes[0]?.dataNorma||"";
+    if(dsa!==dsb) return dsa.localeCompare(dsb);
+
+    return a.title.localeCompare(b.title,"pt-BR");
+  });
+}
+
+function descricaoAlteracao(ch){
+  const alvo=operationForChange(ch)==="revogacao_total"
+    ? "Norma inteira"
+    : (ch.artigosAlterados || ch.target || "Dispositivo");
+  return `${ch.comentario}: ${alvo}`;
+}
+
+function alteracoesAteNorma(key){
+  const grupos=gruposNormasAlteradoras();
+  const idx=grupos.findIndex(g=>g.key===key);
+  if(idx<0) return [];
+
+  const out=[];
+  for(let i=0;i<=idx;i++){
+    out.push(...grupos[i].changes);
+  }
+
+  return out.sort((a,b)=>{
+    const da=dataAlteracao(a)||"0000-00-00";
+    const db=dataAlteracao(b)||"0000-00-00";
+    if(da!==db) return da.localeCompare(db);
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
+function renderAlteringSelector(){
+  const box=document.getElementById("alteringSelector");
+  if(!box) return;
+
+  const grupos=gruposNormasAlteradoras();
+  if(!grupos.length){
+    box.innerHTML='<div class="empty">Nenhuma norma alteradora cadastrada.</div>';
+    return;
+  }
+
+  box.innerHTML=grupos.map(g=>{
+    const dataEfetiva=dataEfetivaNormaAlteradora(g);
+    const metaData=dataEfetiva ? ` · efeitos em ${fmtDateNote(dataEfetiva)}` : "";
+    return `
+      <button class="altering-card ${g.key===selectedAlteringKey?"active":""}" onclick="selectAlteringNorm('${encodeURIComponent(g.key)}')">
+        <div class="a-title">${esc(g.title)}</div>
+        <div class="a-meta">${g.changes.length} alteração(ões) cadastrada(s)${esc(metaData)}</div>
+        <div class="a-items">${g.changes.map(ch=>esc(descricaoAlteracao(ch))).join("<br>")}</div>
+      </button>
+    `;
+  }).join("");
+}
+
+function selectAlteringNorm(encodedKey){
+  selectedAlteringKey=decodeURIComponent(encodedKey);
+  selectedPortalVersion=null;
+  renderPortal();
+}
+
+function renderPortal(){
+  const date=document.getElementById("consultaData").value||"9999-12-31",
+        multi=document.getElementById("multiMode").checked;
+
+  renderAlteringSelector();
+  const versoesDisponiveis=renderVersionSelector(date);
+
+  let selectedChanges=[];
+  if(selectedAlteringKey){
+    selectedChanges=alteracoesAteNorma(selectedAlteringKey);
+  }else{
+    const versaoEscolhida=versoesDisponiveis.find(v=>v.key===selectedPortalVersion)
+      || versoesDisponiveis[versoesDisponiveis.length-1]
+      || {changes:[]};
+    selectedChanges=versaoEscolhida.changes || [];
+  }
+
+  const originalChanges=changes;
+  changes=selectedChanges;
+
+  const map=buildVersions();
+
+  const totalRev=revogacaoTotalAplicavel(date);
+  const totalRevAtiva=!!totalRev;
+
+  const preCount=(estrutura.preambulo||[]).filter(x=>String(x).trim()).length;
+  const fechoCount=(estrutura.fecho||[]).filter(x=>String(x).trim()).length;
+  const assinaturaCount=(estrutura.assinaturas||[]).filter(x=>String(x).trim()).length;
+let html=totalRevAtiva
+    ? `<div class="norma-revogada"><h2>${esc(document.getElementById("normaTitulo").value||"Norma")}</h2>`
+    : `<h2>${esc(document.getElementById("normaTitulo").value||"Norma")}</h2>`;
+
+  // EMENTA VERSIONADA
+  const ementaVersions=map["ementa"]||[];
+  if(multi){
+    ementaVersions.forEach((v,i)=>{
+      if(v.start && date<v.start) return;
+      const active=activeAt(v,date);
+      const later=ementaVersions.some((x,j)=>j>i && (!x.start||date>=x.start));
+      const old=!active||later;
+      const hasChange=ementaVersions.length>1 || v.origin!=="original";
+      const revokedNow=!!v.revokedBy && (!v.revokedAt || date>=v.revokedAt);
+      const note=revokedNow
+        ? noteFor(v.revokedBy,"Ementa")
+        : (v.origin==="original"
+            ? (hasChange ? originalNote("Ementa") : "")
+            : noteFor(v.source,"Ementa"));
+
+      html+=`<div class="bloco-versao">
+        <p class="ementa ${(old||revokedNow)?"versao-anterior":"versao-vigente"}">${esc(v.text)}</p>
+        ${note?`<p class="nota">${esc(note)}</p>`:""}
+      </div>`;
+      if(totalRevAtiva && active){
+        html+=`</div><p class="nota">${esc(notaRevogacaoTotal(totalRev))}</p><div class="norma-revogada">`;
+      }
+    });
+  }else{
+    let ev=ementaVersions.find(x=>activeAt(x,date));
+    if(!ev){
+      ev=[...ementaVersions].reverse().find(x=>x.revokedBy && (!x.revokedAt || date>=x.revokedAt));
+    }
+    if(ev){
+      const revokedNow=!!ev.revokedBy && (!ev.revokedAt || date>=ev.revokedAt);
+      const hasChange=ementaVersions.length>1 || !!ev.revokedBy || ev.origin!=="original";
+      const note=revokedNow
+        ? noteFor(ev.revokedBy,"Ementa")
+        : (ev.origin==="original"
+            ? (hasChange ? originalNote("Ementa") : "")
+            : noteFor(ev.source,"Ementa"));
+      html+=`<p class="ementa ${revokedNow?"versao-anterior":""}">${esc(ev.text)}</p>${note?`<p class="nota">${esc(note)}</p>`:""}`;
+      if(totalRevAtiva){
+        html+=`</div><p class="nota">${esc(notaRevogacaoTotal(totalRev))}</p><div class="norma-revogada">`;
+      }
+    }
+  }
+
+  if(preCount){
+    html+=`<div class="bloco-preambulo" style="margin:22px 0 26px 0">`;
+    estrutura.preambulo.forEach(p=>{
+      if(String(p).trim()) html+=`<p>${esc(p)}</p>`;
+    });
+    html+=`</div>`;
+  }
+
+  const order=[];
+  estrutura.dispositivos.forEach(art=>{
+    if(!order.includes(art.id)) order.push(art.id);
+
+    (art.caput.filhos||[]).forEach(f=>{
+      if(!order.includes(f.id)) order.push(f.id);
+      (f.filhos||[]).forEach(ff=>{
+        if(!order.includes(ff.id)) order.push(ff.id);
+      });
+    });
+
+    changes
+      .filter(c=>c.operacao==="acrescimo" && displayIdForTarget(c.target)===art.id)
+      .forEach(c=>{
+        if(!order.includes(c.novoId)) order.push(c.novoId);
+      });
+  });
+
+  order.forEach(id=>{
+    const versions=map[id]||[];
+
+    if(multi){
+      versions.forEach((v,i)=>{
+        if(v.start && date<v.start) return;
+
+        const active=activeAt(v,date);
+        const later=versions.some((x,j)=>j>i && (!x.start||date>=x.start));
+        const old=!active||later;
+        const hasChange = versions.length>1 || !!v.revokedBy || v.origin!=="original";
+
+        const revokedNow=!!v.revokedBy && (!v.revokedAt || date>=v.revokedAt);
+        const note=revokedNow
+          ? noteFor(v.revokedBy,v.noteType||v.type)
+          : (v.origin==="original"
+              ? (hasChange ? originalNote(v.noteType||v.type) : "")
+              : noteFor(v.source,v.noteType||v.type));
+
+        html+=`<div class="bloco-versao">
+          <p class="${(old||revokedNow)?"versao-anterior":"versao-vigente"}">${esc(displayText(v)).replace(/\n/g,"<br>")}</p>
+          ${note?`<p class="nota">${esc(note)}</p>`:""}
+        </div>`;
+      });
+    }else{
+      let v=versions.find(x=>activeAt(x,date));
+      if(!v){
+        v=[...versions].reverse().find(x=>x.revokedBy && (!x.revokedAt || date>=x.revokedAt));
+      }
+      if(!v)return;
+
+      const revokedNow=!!v.revokedBy && (!v.revokedAt || date>=v.revokedAt);
+      const hasChange = versions.length>1 || !!v.revokedBy || v.origin!=="original";
+      const note=revokedNow
+        ? noteFor(v.revokedBy,v.noteType||v.type)
+        : (v.origin==="original"
+            ? (hasChange ? originalNote(v.noteType||v.type) : "")
+            : noteFor(v.source,v.noteType||v.type));
+
+      html+=`<div class="bloco-versao">
+        <p class="${revokedNow?"versao-anterior":""}">${esc(displayText(v)).replace(/\n/g,"<br>")}</p>
+        ${note?`<p class="nota">${esc(note)}</p>`:""}
+      </div>`;
+    }
+  });
+
+  if(fechoCount || assinaturaCount){
+    html+=`<div style="margin-top:34px;padding-top:18px;border-top:1px solid #e1e6ec">`;
+  }
+
+  if(fechoCount){
+    html+=`<div class="parte-final">`;
+    estrutura.fecho.forEach(f=>{
+      if(String(f).trim()) html+=`<p>${esc(f)}</p>`;
+    });
+    html+=`</div>`;
+  }
+
+  if(assinaturaCount){
+    html+=`<div class="assinaturas" style="margin-top:22px">`;
+    estrutura.assinaturas.forEach(nome=>{
+      if(String(nome).trim()) html+=`<p style="font-weight:600">${esc(nome)}</p>`;
+    });
+    html+=`</div>`;
+  }
+
+  if(fechoCount || assinaturaCount) html+=`</div>`;
+
+  if(totalRevAtiva) html+=`</div>`;
+  document.getElementById("portalView").innerHTML=html;
+  document.getElementById("portalStatus").textContent=
+    `Consulta: ${date==="9999-12-31"?"sem data":fmtDate(date)}`;
+
+  changes=originalChanges;
+}
+
+function escapeXml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;")}
+function xmlFilhos(filhos,indent){
+  let out="";
+  for(const d of filhos||[]){
+    const tag=d.tipo==="Parágrafo"?"Paragrafo":d.tipo==="Inciso"?"Inciso":d.tipo==="Alínea"?"Alinea":"Dispositivo";
+    out+=`${indent}<${tag} id="${escapeXml(d.id)}">\n`;
+    out+=`${indent}    <Rotulo>${escapeXml(d.rotulo)}</Rotulo>\n`;
+    out+=`${indent}    <p>${escapeXml(d.texto)}</p>\n`;
+    out+=xmlFilhos(d.filhos,indent+"    ");
+    out+=`${indent}</${tag}>\n`;
+  }
+  return out;
+}
+function gerarLexML(){
+  let x=`<?xml version="1.0" encoding="UTF-8"?>\n`;
+  x+=`<LexML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n`;
+  x+=`       xmlns:xlink="http://www.w3.org/1999/xlink"\n`;
+  x+=`       xmlns="http://www.lexml.gov.br/1.0"\n`;
+  x+=`       xmlns:math="http://www.ora.com/XSLTCookbook/math"\n`;
+  x+=`       xsi:schemaLocation="http://www.lexml.gov.br/1.0 http://projeto.lexml.gov.br/esquemas/lexml-br-rigido.xsd">\n`;
+  x+=`    <Norma>\n        <ParteInicial>\n`;
+  x+=`            <Ementa>${escapeXml(estrutura.ementa)}</Ementa>\n`;
+  x+=`            <Preambulo>${escapeXml(estrutura.preambulo.join(" "))}</Preambulo>\n`;
+  x+=`        </ParteInicial>\n        <Articulacao>\n`;
+  for(const art of estrutura.dispositivos){
+    x+=`            <Artigo id="${escapeXml(art.id)}">\n`;
+    x+=`                <Rotulo>${escapeXml(art.rotulo)}</Rotulo>\n`;
+    x+=`                <Caput id="${escapeXml(art.caput.id)}">\n`;
+    x+=`                    <p>${escapeXml(art.caput.texto)}</p>\n`;
+    x+=xmlFilhos(art.caput.filhos,"                    ");
+    x+=`                </Caput>\n            </Artigo>\n`;
+  }
+  x+=`        </Articulacao>\n        <ParteFinal>\n`;
+  if(estrutura.fecho.length)x+=`            <LocalDataFecho>${escapeXml(estrutura.fecho.join(" "))}</LocalDataFecho>\n`;
+  if(estrutura.assinaturas.length){
+    x+=`            <Assinaturas>\n`;
+    for(const nome of estrutura.assinaturas)x+=`                <Assinatura><NomePessoa>${escapeXml(nome)}</NomePessoa></Assinatura>\n`;
+    x+=`            </Assinaturas>\n`;
+  }
+  x+=`        </ParteFinal>\n    </Norma>\n</LexML>`;
+  document.getElementById("lexml").textContent=x;return x;
+}
+function atualizarLexML(){gerarLexML();document.getElementById("xmlStatus").textContent="LexML atualizado às "+new Date().toLocaleTimeString("pt-BR")+"."}
+async function copiarLexML(){try{await navigator.clipboard.writeText(gerarLexML());alert("LexML copiado.")}catch{alert("Não foi possível copiar automaticamente.")}}
+function baixarLexML(){const xml=gerarLexML(),blob=new Blob([xml],{type:"application/xml;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="norma_lexml.xml";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+
+function toggleSidebar(){
+  const sidebar=document.getElementById("sidebar");
+  sidebar.classList.toggle("collapsed");
+  localStorage.setItem("sidebarCollapsed",sidebar.classList.contains("collapsed")?"1":"0");
+}
+
+function switchTab(id){
+  document.querySelectorAll(".tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tab===id));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.id===id));
+  if(id==="alteracao")refreshTargets();
+  if(id==="redacoes")renderVersions();
+  if(id==="portal")renderPortal();
+  if(id==="lexmltab")atualizarLexML();
+}
+document.querySelectorAll(".side-nav .tabbtn").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
+if(localStorage.getItem("sidebarCollapsed")==="1") document.getElementById("sidebar").classList.add("collapsed");
+renderChanges();renderVersions();toggleFields();togglePrazoFields();renderPortal();
+</script>
+</body>
+</html>
