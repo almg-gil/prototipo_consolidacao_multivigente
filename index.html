@@ -93,6 +93,7 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
     <nav class="side-nav">
       <button class="tabbtn active" data-tab="importar"><span class="stepnum">0</span><span class="nav-copy"><strong>Importar ODT</strong><span>Entrada da norma</span></span></button>
       <button class="tabbtn" data-tab="texto"><span class="stepnum">1</span><span class="nav-copy"><strong>Texto estruturado</strong><span>Revisão da estrutura</span></span></button>
+      <button class="tabbtn" data-tab="importarAlteradora"><span class="stepnum">2a</span><span class="nav-copy"><strong>Importar norma alteradora</strong><span>Identificar comandos</span></span></button>
       <button class="tabbtn" data-tab="alteracao"><span class="stepnum">2</span><span class="nav-copy"><strong>Registrar alteração</strong><span>Metadados e vínculo</span></span></button>
       <button class="tabbtn" data-tab="redacoes"><span class="stepnum">3</span><span class="nav-copy"><strong>Redações temporais</strong><span>Histórico consolidado</span></span></button>
       <button class="tabbtn" data-tab="portal"><span class="stepnum">4</span><span class="nav-copy"><strong>Exibição no portal</strong><span>Visualização pública</span></span></button>
@@ -142,7 +143,15 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
     </div>
   </section>
 
-  <section id="alteracao" class="tab">
+  <section id="importarAlteradora" class="tab"><div class="panel">
+<p class="section-title">Importar norma alteradora</p>
+<div class="info">Importe primeiro a norma-base e informe sua identificação na etapa Texto estruturado. Nenhuma sugestão será registrada sem confirmação.</div>
+<label>Arquivo ODT da norma alteradora</label><input id="alteradoraFile" type="file" accept=".odt">
+<label style="margin-top:12px">Ou cole o texto integral (incluindo identificação, se disponível)</label><textarea id="alteradoraTexto" style="min-height:200px"></textarea>
+<div class="actions" style="margin-top:12px"><button class="btn" onclick="lerAlteradora()">Ler ODT</button><button class="btn primary" onclick="analisarAlteradora()">Identificar alterações</button></div>
+<div id="alteradoraStatus" class="info" style="margin-top:12px"></div><div id="sugestoes"></div>
+</div></section>
+<section id="alteracao" class="tab">
     <div class="panel">
       <p class="section-title">Registrar modificação legislativa</p>
       <div class="grid">
@@ -340,6 +349,7 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
 let estrutura={ementa:"",preambulo:[],dispositivos:[],fecho:[],assinaturas:[]};
 let changes=JSON.parse(localStorage.getItem("integrado_changes")||"[]");
 let editingChangeId=null;
+let sugestoes=[], sugestaoAtiva=null;
 let logs=[];
 let selectedPortalVersion="latest";
 let selectedAlteringKey=null;
@@ -414,13 +424,17 @@ function interpretarContentXml(xmlText){
   estrutura={ementa:paras[0],preambulo:[],dispositivos:[],fecho:[],assinaturas:[]};
   document.getElementById("ementa").value=estrutura.ementa;
 
-  let fase="preambulo",artigoAtual=null,ultimoPaiInciso=null,ultimoDispositivo=null;
+  let fase="preambulo",artigoAtual=null,ultimoPaiInciso=null,ultimoDispositivo=null, dentroCitacao=false;
   for(let i=1;i<paras.length;i++){
     const t=paras[i];let m;
-    if((m=t.match(/^Art\.\s*(\d+)[ºo°]?\s*[–—-]\s*(.*)$/i))){
-      fase="articulacao";const n=Number(m[1]);
-      artigoAtual={id:`art${n}`,tipo:"Artigo",rotulo:`Art. ${n}º`,
-        caput:{id:`art${n}_cpt`,tipo:"Caput",rotulo:`Art. ${n}º`,texto:m[2].trim(),filhos:[]}};
+    if(dentroCitacao || (ultimoDispositivo && /^[“"]/u.test(t) && /:\s*$/.test(ultimoDispositivo.texto))){
+      ultimoDispositivo.texto+=(ultimoDispositivo.texto?"\n":"")+t;
+      dentroCitacao=!/[”"](?:\s*[.;])?\s*$/.test(t.slice(dentroCitacao?0:1));continue;
+    }
+    if((m=t.match(/^Art\.\s*(\d+)[ºo°]?\s*(?:-([A-Z]+))?\s*[–—-]\s*(.*)$/i))){
+      fase="articulacao";const n=Number(m[1]), suf=m[2]?"-"+m[2].toUpperCase():"", aid=`art${n}${suf}`, rot=`Art. ${n}${n<=9?"º":""}${suf}`;
+      artigoAtual={id:aid,tipo:"Artigo",rotulo:rot,
+        caput:{id:`${aid}_cpt`,tipo:"Caput",rotulo:rot,texto:m[3].trim(),filhos:[]}};
       estrutura.dispositivos.push(artigoAtual);ultimoPaiInciso=artigoAtual.caput;ultimoDispositivo=artigoAtual.caput;continue;
     }
     if((m=t.match(/^Parágrafo\s+único\s*[–—-]\s*(.*)$/i))&&artigoAtual){
@@ -846,6 +860,11 @@ function registerChange(){
     return;
   }
 
+  if(!dados.dataNorma || ((dados.prazoTipo==="inicio_vigencia" || dados.prazoTipo==="producao_efeitos") && !dados.prazoData)){
+    alert("Confirme a data da norma e a data de vigência ou efeitos antes de registrar.");return;
+  }
+  if(dados.operacao==="acrescimo" && (displayDevices().some(d=>d.id===dados.novoId) || changes.some(c=>c.id!==editingChangeId && c.novoId===dados.novoId))){alert("O ID acrescentado já existe.");return;}
+  if(!confirm("Confirma o registro deste vide e a atualização da consolidação?"))return;
   if(editingChangeId){
     const idx=changes.findIndex(c=>c.id===editingChangeId);
     if(idx>=0){
@@ -853,11 +872,13 @@ function registerChange(){
     }
   }else{
     changes.push({
-      id:"chg_"+Date.now(),
+      id:"chg_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),
       ...dados
     });
   }
 
+  if(sugestaoAtiva!==null){sugestoes[sugestaoAtiva].registrada=true;sugestaoAtiva=null;renderSugestoes();}
+  selectedPortalVersion="latest";selectedAlteringKey=null;
   const estavaEditando=!!editingChangeId;
   localStorage.setItem("integrado_changes",JSON.stringify(changes));
   cancelEditChange(false);
@@ -869,6 +890,7 @@ function registerChange(){
 }
 
 function editChange(id){
+  sugestaoAtiva=null;
   const ch=changes.find(c=>c.id===id);
   if(!ch)return;
 
@@ -927,6 +949,7 @@ function clearChangeForm(){
 }
 
 function cancelEditChange(clearForm=true){
+  sugestaoAtiva=null;
   editingChangeId=null;
   document.getElementById("saveChangeBtn").textContent="Registrar alteração";
   document.getElementById("cancelEditBtn").style.display="none";
@@ -1351,23 +1374,8 @@ let html=totalRevAtiva
     html+=`</div>`;
   }
 
-  const order=[];
-  estrutura.dispositivos.forEach(art=>{
-    if(!order.includes(art.id)) order.push(art.id);
-
-    (art.caput.filhos||[]).forEach(f=>{
-      if(!order.includes(f.id)) order.push(f.id);
-      (f.filhos||[]).forEach(ff=>{
-        if(!order.includes(ff.id)) order.push(ff.id);
-      });
-    });
-
-    changes
-      .filter(c=>c.operacao==="acrescimo" && displayIdForTarget(c.target)===art.id)
-      .forEach(c=>{
-        if(!order.includes(c.novoId)) order.push(c.novoId);
-      });
-  });
+  const order=Object.keys(map).filter(id=>id!=="ementa");
+  order.sort(compararIds);
 
   order.forEach(id=>{
     const versions=map[id]||[];
@@ -1505,6 +1513,60 @@ function switchTab(id){
   if(id==="portal")renderPortal();
   if(id==="lexmltab")atualizarLexML();
 }
+// Interpretador assistido: conserva o texto-fonte e somente propõe operações reconhecidas.
+function compararIds(a,b){
+ const parts=id=>id.split('_').filter(x=>x!=='cpt').map(x=>{const m=x.match(/^(art|inc|par|ali|ite)(\d+)(.*)$/);return m?[{art:0,inc:1,par:2,ali:3,ite:4}[m[1]],Number(m[2]),m[3]]:[9,0,x]});
+ const x=parts(a),y=parts(b);for(let i=0;i<Math.min(x.length,y.length);i++){const d=x[i][0]-y[i][0]||x[i][1]-y[i][1]||x[i][2].localeCompare(y[i][2]);if(d)return d;}return x.length-y.length;
+}
+async function lerAlteradora(){try{const f=document.getElementById('alteradoraFile').files[0];if(!f)throw Error('Selecione um ODT.');const xml=await extrairArquivoDoZip(await f.arrayBuffer(),'content.xml');const doc=new DOMParser().parseFromString(xml,'application/xml');if(doc.querySelector('parsererror'))throw Error('XML inválido.');document.getElementById('alteradoraTexto').value=[...doc.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:text:1.0','p')].map(textoElemento).filter(Boolean).join('\n');analisarAlteradora();}catch(e){document.getElementById('alteradoraStatus').textContent=e.message;}}
+const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function identidadeNorma(t){
+ const m=t.match(/\b(Lei Complementar|Lei Delegada|Lei|Decreto-Lei|Decreto|Resolução|Portaria|Deliberação)\s+n[º°o.]\s*([\d.]+)\s*(?:,?\s*de\s+(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})|,?\s*de\s+(\d{1,2})[º°]?\/(\d{1,2})\/(\d{4})|\/(\d{4})|,?\s*de\s+(\d{4}))/i);
+ if(!m)return null;const ano=m[5]||m[8]||m[9]||m[10];const mes=m[4]?MESES.indexOf(m[4].toLowerCase())+1:Number(m[7]||0);const dia=Number(m[3]||m[6]||0);return {tipo:m[1],numero:m[2].replace(/\./g,''),ano,data:mes&&dia?`${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`:''};
+}
+function mesmaNorma(a,b){return !!a&&!!b&&a.tipo.toLowerCase()===b.tipo.toLowerCase()&&a.numero===b.numero&&a.ano===b.ano;}
+function separarArtigosAlteradores(texto){
+ const linhas=texto.replace(/\r/g,'').split('\n').map(x=>x.trim()).filter(Boolean);let atual=null,aberto=false;const arts=[];
+ for(const l of linhas){const m=!aberto&&l.match(/^Art\.\s*(\d+)[º°o]?(?:-([A-Z]+))?\s*[–—-]\s*(.*)$/i);if(m){atual={numero:m[1],complemento:m[2]||'',texto:m[3]};arts.push(atual);}else if(atual)atual.texto+='\n'+l;const opens=(l.match(/“/g)||[]).length, closes=(l.match(/”/g)||[]).length;if(opens>closes)aberto=true;else if(closes>opens)aberto=false;else if(!opens && (l.match(/"/g)||[]).length%2)aberto=!aberto;}
+ return arts;
+}
+function caminhoComando(c){const a=c.match(/\bart\.\s*(\d+)[º°o]?(?:-([A-Z]+))?/i);if(!a)return null;const art='art'+a[1]+(a[2]?'-'+a[2].toUpperCase():'');const p=c.match(/§\s*(\d+)[º°o]?/);const pu=/parágrafo único/i.test(c);const i=c.match(/\binciso\s+([IVXLCDM]+)\b/i);const pai=p?art+'_par'+p[1]:pu?art+'_par1':art+'_cpt';return {art,pai,inc:i?romanoParaNumero(i[1]):null,rot:'Art. '+a[1]+(Number(a[1])<=9?'º':'')+(a[2]?'-'+a[2]:''),temPar:!!p||pu};}
+function propostasDoTexto(texto,base){
+ const arts=separarArtigosAlteradores(texto), inicio=texto.split(/^\s*Art\.\s*\d+/im)[0];const primeiraLinha=inicio.split('\n').find(x=>x.trim())||'';const meta=identidadeNorma(primeiraLinha.match(/^\s*(Lei|Decreto|Resolução|Portaria|Deliberação)\b/i)?primeiraLinha:'');
+ const publicacao=/entra em vigor na data de sua publicação/i.test(texto);const resultados=[], avisos=[];
+ for(const a of arts){
+  const q=a.texto.search(/[“"]/);const comando=(q>=0?a.texto.slice(0,q):a.texto).replace(/\s+/g,' ').trim();let bloco='';if(q>=0){const fim=a.texto.lastIndexOf(a.texto[q]==='“'?'”':'"');if(fim<=q){avisos.push(`Art. ${a.numero}: aspas sem fechamento.`);continue;}bloco=a.texto.slice(q+1,fim).trim();}
+  const add=/\b(?:fica|ficam) acrescentad[oa]s?\b/i.test(comando), rev=/\b(?:fica|ficam) revogad[oa]s?\b/i.test(comando), alt=/\bpassa[m]? a vigorar com a seguinte redação\b/i.test(comando);
+  if(!add&&!rev&&!alt){if(/\b(acrescent|revog|redaç|renumer|suprim|alter)/i.test(comando))avisos.push(`Art. ${a.numero}: comando não reconhecido; conferir manualmente.`);continue;}
+  const afetada=identidadeNorma(comando);if(!mesmaNorma(afetada,base)){avisos.push(`Art. ${a.numero}: norma afetada diferente ou não identificada; não vinculada.`);continue;}
+  const path=caminhoComando(comando);const comum={artigoAlterador:a.numero,complementoArtigo:a.complemento,tipoNorma:meta?.tipo||'Lei',numero:meta?.numero||'',ano:meta?.ano||'',dataNorma:meta?.data||'',prazoTipo:'inicio_vigencia',prazoData:'',prazoLivre:'',parteArtigo:'',fonte:a.texto,criterio:publicacao?'Data de publicação (confirmar)':'Vigência a confirmar'};
+  if(rev&&!path){if(/^Fica revogad[oa]\s+(?:a|o)\s+(?:Lei|Decreto|Resolução|Portaria)\b/i.test(comando))resultados.push({...comum,comentario:'Revogação total',target:'',artigosAlterados:''});else avisos.push(`Art. ${a.numero}: revogação sem alvo inequívoco.`);continue;}
+  if(!path){avisos.push(`Art. ${a.numero}: dispositivo não reconhecido.`);continue;}
+  // Não inferir listas, intervalos ou comandos compostos.
+  if(/(?:§§|\bincisos\b|\balíneas\b|\barts\.|\bartigos\b|\bparágrafos\b)/i.test(comando)){avisos.push(`Art. ${a.numero}: múltiplos dispositivos; revisão manual.`);continue;}
+  const item={...comum,artigosAlterados:path.rot};
+  if(rev){resultados.push({...item,comentario:'Revogação',target:path.inc?path.pai+'_inc'+path.inc:path.temPar?path.pai:path.art});continue;}
+  if(!bloco){avisos.push(`Art. ${a.numero}: conteúdo entre aspas não localizado.`);continue;}
+  const linhas=bloco.split('\n').map(x=>x.trim()).filter(Boolean);let encontrados=[];let atual=null;
+  for(const l of linhas){let m;if((m=l.match(/^Art\.\s*(\d+)[º°o]?(?:-([A-Z]+))?\s*[–—-]\s*(.*)$/i))){atual={tipo:'Artigo',id:'art'+m[1]+(m[2]?'-'+m[2].toUpperCase():''),rotulo:'Art. '+m[1]+(Number(m[1])<=9?'º':'')+(m[2]?'-'+m[2]:''),texto:m[3]};encontrados.push(atual);}else if((m=l.match(/^([IVXLCDM]+)\s*[–—-]\s*(.*)$/))){atual={tipo:'Inciso',id:path.pai+'_inc'+romanoParaNumero(m[1]),rotulo:m[1],texto:m[2]};encontrados.push(atual);}else if((m=l.match(/^(§\s*(\d+)[º°o]?|Parágrafo único)\s*[–—-]\s*(.*)$/i))){atual={tipo:'Parágrafo',id:path.art+'_par'+(m[2]||'1'),rotulo:m[1],texto:m[3]};encontrados.push(atual);}else if(atual)atual.texto+='\n'+l;}
+  encontrados=encontrados.filter(x=>x.texto.trim()&&!/^\s*\((?:…|\.{3})\)\s*$/.test(x.texto));
+  if(encontrados.length!==1 || /\((?:…|\.{3})\)/.test(encontrados[0]?.texto||'')){avisos.push(`Art. ${a.numero}: bloco composto ou incompleto; conferir manualmente.`);continue;}
+  const d=encontrados[0];const esperado=path.inc?path.pai+'_inc'+path.inc:path.temPar?path.pai:path.art;
+  if((d.tipo==='Inciso'&&d.id!==esperado)||(d.tipo==='Artigo'&&d.id!==path.art)||(d.tipo==='Parágrafo'&&path.temPar&&d.id!==path.pai)){avisos.push(`Art. ${a.numero}: divergência entre comando e bloco.`);continue;}
+  if(add){const pai=d.tipo==='Inciso'?path.pai:d.tipo==='Parágrafo'?path.art:null;if(!pai){avisos.push(`Art. ${a.numero}: acréscimo de artigo exige vinculação manual nesta versão.`);continue;}resultados.push({...item,comentario:'Acréscimo',target:pai,novoId:d.id,novoRotulo:d.rotulo,novoTipo:d.tipo,novoTexto:d.texto});}
+  else {resultados.push({...item,comentario:'Alteração',target:d.tipo==='Artigo'&&/\bcaput\b/i.test(comando)?path.art+'_cpt':d.id,novoTexto:d.texto});}
+ }
+ return {resultados,avisos};
+}
+function analisarAlteradora(){
+ const base=identidadeNorma(document.getElementById('normaTitulo').value);const status=document.getElementById('alteradoraStatus');
+ if(!estrutura.dispositivos.length||!base){status.textContent='Importe a norma-base e informe sua identificação completa (tipo, número e ano).';return;}
+ const texto=document.getElementById('alteradoraTexto').value;if(!texto.trim()){status.textContent='Informe o texto da norma alteradora.';return;}
+ const r=propostasDoTexto(texto,base);sugestoes=r.resultados;sugestaoAtiva=null;status.textContent=`${sugestoes.length} sugestão(ões). ${r.avisos.join(' | ')}`;renderSugestoes();
+}
+function renderSugestoes(){document.getElementById('sugestoes').innerHTML=sugestoes.map((c,i)=>`<div class="card"><div class="title">${esc(c.comentario)} — art. ${esc(c.artigoAlterador)} da alteradora</div><div class="meta">Destino: ${esc(c.target||'Norma inteira')} ${esc(c.novoId||'')} · ${esc(c.criterio)}</div><div class="text">${esc(c.novoTexto||c.fonte)}</div><button class="btn small" ${c.registrada?'disabled':''} onclick="revisarSugestao(${i})">${c.registrada?'Registrada':'Conferir vide'}</button></div>`).join('');}
+function revisarSugestao(i){const c=sugestoes[i];if(!c||c.registrada)return;cancelEditChange();sugestaoAtiva=i;const campos={tipoNorma:c.tipoNorma,numeroNorma:c.numero,anoNorma:c.ano,dataNorma:c.dataNorma,prazoTipo:c.prazoTipo,prazoData:c.prazoData,artigoAlterador:c.artigoAlterador,complementoArtigo:c.complementoArtigo,parteArtigo:c.parteArtigo,comentario:c.comentario,artigosAlterados:c.artigosAlterados,novoId:c.novoId,novoRotulo:c.novoRotulo,novoTipo:c.novoTipo,novoTexto:c.novoTexto};for(const [id,v] of Object.entries(campos)){if(v!=null)document.getElementById(id).value=v;}switchTab('alteracao');refreshTargets();document.getElementById('targetDevice').value=c.target||'';toggleFields();togglePrazoFields();if(c.target&&!document.getElementById('targetDevice').value)alert('Alvo não localizado na norma-base. Confira manualmente.');window.scrollTo({top:0,behavior:'smooth'});}
+
 document.querySelectorAll(".side-nav .tabbtn").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
 if(localStorage.getItem("sidebarCollapsed")==="1") document.getElementById("sidebar").classList.add("collapsed");
 renderChanges();renderVersions();toggleFields();togglePrazoFields();renderPortal();
