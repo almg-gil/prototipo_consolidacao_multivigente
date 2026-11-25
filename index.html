@@ -130,7 +130,12 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
         <div class="f4"><label>Tipo da norma</label><select id="baseTipo" onchange="atualizarIdentificacaoBase()"></select></div>
         <div class="f4"><label>Número</label><input id="baseNumero" inputmode="numeric" oninput="atualizarIdentificacaoBase()"></div>
         <div class="f4"><label>Data de sanção</label><input id="baseSancao" type="date" onchange="atualizarIdentificacaoBase()"></div>
-        <div class="f12"><label>Identificação da norma (gerada automaticamente)</label><input id="normaTitulo" readonly placeholder="Preencha tipo, número e data de sanção"></div>
+        <div class="f4"><label>Data de publicação</label><input id="basePublicacao" type="date" onchange="atualizarPrazoBase()"></div>
+<div class="f4"><label>Critério de vigência</label><select id="baseCriterio" onchange="atualizarPrazoBase()"><option value="manual">Data específica / confirmar</option><option value="publicacao">Na publicação</option><option value="dias">Após número de dias</option></select></div>
+<div class="f4"><label>Dias de vacância</label><input id="baseDias" type="number" min="1" onchange="atualizarPrazoBase()"></div>
+<div class="f4"><label>Início da vigência</label><input id="baseVigencia" type="date" onchange="renderPortal()"></div>
+<div class="f4"><label>Produção de efeitos (se aplicável)</label><input id="baseEfeitos" type="date" onchange="renderPortal()"></div>
+<div class="f12"><label>Identificação da norma (gerada automaticamente)</label><input id="normaTitulo" readonly placeholder="Preencha tipo, número e data de sanção"></div>
         <div class="f12">
           <label>Ementa</label>
           <input id="ementa" oninput="estrutura.ementa=this.value">
@@ -187,10 +192,15 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
         <div class="f2"><label>Número</label><input id="numeroNorma"></div>
         <div class="f2"><label>Complemento</label><input id="complementoNorma"></div>
         <div class="f2"><label>Ano</label><input id="anoNorma"></div>
-        <div class="f3"><label>Data da norma alteradora</label><input type="date" id="dataNorma"></div>
+        <div class="f3"><label>Data de sanção da norma alteradora</label><input type="date" id="dataNorma"></div>
 
+<div class="f3"><label>Data de publicação</label><input type="date" id="dataPublicacao" onchange="togglePrazoFields()"></div>
+<div class="f3"><label>Critério de vigência</label><select id="criterioVigencia" onchange="togglePrazoFields()"><option value="manual">Data específica / confirmar</option><option value="publicacao">Na publicação</option><option value="dias">Após número de dias</option></select></div>
+<div class="f3"><label>Dias de vacância</label><input id="diasVigencia" type="number" min="1" onchange="togglePrazoFields()"></div>
+<div class="f3"><label>Início da vigência</label><input type="date" id="dataVigencia" onchange="togglePrazoFields()"></div>
+<div class="f3"><label>Produção de efeitos (se aplicável)</label><input type="date" id="dataEfeitos" onchange="togglePrazoFields()"></div>
         <div class="f3">
-          <label>Prazo para alteração</label>
+          <label>Prazo para alteração (nota de vide)</label>
           <select id="prazoTipo" onchange="togglePrazoFields()">
             <option value="inicio_vigencia">Início da vigência</option>
             <option value="producao_efeitos">Produção de efeitos</option>
@@ -407,6 +417,8 @@ async function importarODT(){
     interpretarContentXml(contentXml);
     const identidadeArquivo=identidadeNomeArquivo(file.name);
     preencherIdentificacaoBase(identidadeArquivo);
+    const xmlBase=new DOMParser().parseFromString(contentXml,'application/xml');const textoBase=[...xmlBase.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:text:1.0','p')].map(textoElemento).join('\n');const vb=interpretarVigencia(textoBase);
+    definir('basePublicacao','');definir('baseCriterio',vb.criterioVigencia);definir('baseDias',vb.diasVigencia);definir('baseVigencia',vb.dataVigencia);definir('baseEfeitos',vb.dataEfeitos);atualizarPrazoBase();
     log('Identificação: '+(document.getElementById('normaTitulo').value||'preencher manualmente'));
     log(`Estrutura interpretada: ${estrutura.dispositivos.length} artigo(s).`);
     renderEstruturaEditavel(); refreshTargets(); atualizarLexML(); renderChanges(); renderVersions(); renderPortal();
@@ -617,37 +629,35 @@ function toggleFields(){
 function fmtDate(iso){if(!iso)return"imediata";const[y,m,d]=iso.split("-");return`${d}/${m}/${y}`}
 function fmtDateNote(iso){if(!iso)return"";const[y,m,d]=iso.split("-").map(Number);const dia=d===1?"1º":String(d);return`${dia}/${m}/${y}`}
 
+function valor(id){return document.getElementById(id).value;}
+function definir(id,v){document.getElementById(id).value=v||'';}
+function somarDias(data,dias){if(!data||!Number.isInteger(Number(dias))||Number(dias)<1)return '';const d=new Date(data+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+Number(dias));return d.toISOString().slice(0,10);}
+function calcularVigencia(criterio,pub,dias,manual){return criterio==='publicacao'?pub:criterio==='dias'?somarDias(pub,dias):manual;}
+function atualizarPrazoBase(){const c=valor('baseCriterio');if(c!=='manual')definir('baseVigencia',calcularVigencia(c,valor('basePublicacao'),valor('baseDias'),''));document.getElementById('baseVigencia').readOnly=c!=='manual';renderPortal();}
 function togglePrazoFields(){
-  const tipo=document.getElementById("prazoTipo").value;
-  const dataWrap=document.getElementById("prazoDataWrap");
-  const livreWrap=document.getElementById("prazoLivreWrap");
-  const label=document.getElementById("prazoDataLabel");
-
-  const usaData=tipo==="inicio_vigencia" || tipo==="producao_efeitos";
-  dataWrap.style.display=usaData?"block":"none";
-  livreWrap.style.display=tipo==="livre"?"block":"none";
-
-  label.textContent=tipo==="producao_efeitos" ? "Data de produção de efeitos" : "Data de início da vigência";
+ const c=valor('criterioVigencia'), tipo=valor('prazoTipo');
+ if(c!=='manual')definir('dataVigencia',calcularVigencia(c,valor('dataPublicacao'),valor('diasVigencia'),''));
+ document.getElementById('dataVigencia').readOnly=c!=='manual';
+ definir('prazoData',tipo==='producao_efeitos'?valor('dataEfeitos'):valor('dataVigencia'));
+ document.getElementById('prazoData').readOnly=true;
+ document.getElementById('prazoDataWrap').style.display=tipo==='livre'?'none':'block';
+ document.getElementById('prazoLivreWrap').style.display=tipo==='livre'?'block':'none';
+ document.getElementById('prazoDataLabel').textContent=tipo==='producao_efeitos'?'Data de produção de efeitos':'Data de início da vigência';
 }
-
 function dataAlteracao(ch){
-  if(ch.prazoTipo==="inicio_vigencia" && ch.prazoData){
-    return ch.prazoData;
-  }
-  if(ch.prazoTipo==="producao_efeitos" && ch.prazoData){
-    return ch.prazoData;
-  }
-
-  // Se não houver data específica de vigência/efeitos, usa a data
-  // da norma alteradora como referência cronológica.
-  if(ch.dataNorma){
-    return ch.dataNorma;
-  }
-
-  // Compatibilidade com registros antigos.
-  return ch.vigencia || "";
+ if(ch.dataVigencia){if(!ch.dataPublicacao)return '';return ch.dataEfeitos||ch.dataVigencia;}
+ // Registros anteriores exigem conferência das datas, sem inferir pela sanção.
+ return '';
 }
-
+function interpretarVigencia(texto){
+ const arts=separarArtigosAlteradores(texto);const clausulas=arts.map(a=>a.texto.split(/[“"]/)[0]).filter(t=>/entra(?:m)? em vigor|produz(?:em|indo)? efeitos/i.test(t));
+ const t=clausulas.join(' ');const complexo=clausulas.length>1||/excet|ressalv|salvo|quanto ao|relativamente|\bincisos?\b|\barts?\./i.test(t);
+ const data=fragmento=>{const m=fragmento.match(/(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);if(!m)return '';const mes=MESES.indexOf(m[2].toLowerCase())+1;return mes?`${m[3]}-${String(mes).padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
+ const partes=t.split(/produz(?:em|indo)? efeitos/i);const v=partes[0]||'', e=partes[1]||'';const dias=v.match(/(?:\((\d+)\)|\b(\d+)|\b(trinta|sessenta|noventa|quarenta e cinco|cento e oitenta))\s+dias\s+(?:após|da|contados)/i);const nums={'trinta':30,'sessenta':60,'noventa':90,'quarenta e cinco':45,'cento e oitenta':180};
+ if(complexo)return {criterioVigencia:'manual',diasVigencia:'',dataVigencia:'',dataEfeitos:'',criterio:'Cláusula complexa: conferir por dispositivo'};
+ const c=dias?'dias':/na data (?:de sua|da) publicação/i.test(v)?'publicacao':'manual';
+ return {criterioVigencia:c,diasVigencia:dias?String(dias[1]||dias[2]||nums[dias[3].toLowerCase()]||''):'',dataVigencia:c==='manual'?data(v):'',dataEfeitos:data(e),criterio:t?'Conferir publicação e vigência: '+t.slice(0,220):'Vigência a confirmar'};
+}
 function complementoPrazoNota(ch){
   if(ch.prazoTipo==="inicio_vigencia" && ch.prazoData){
     return `, em vigor a partir de ${fmtDateNote(ch.prazoData)}`;
@@ -661,7 +671,7 @@ function complementoPrazoNota(ch){
   }
   return "";
 }
-function prevDay(iso){const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)}
+function prevDay(iso){const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10)}
 
 function formatNormNumber(value){
   const s=String(value||"").replace(/\D/g,"");
@@ -824,6 +834,7 @@ function collectChangeForm(){
     complemento:document.getElementById("complementoNorma").value.trim(),
     ano:document.getElementById("anoNorma").value.trim(),
     dataNorma:document.getElementById("dataNorma").value,
+    dataPublicacao:valor('dataPublicacao'),criterioVigencia:valor('criterioVigencia'),diasVigencia:valor('diasVigencia'),dataVigencia:valor('dataVigencia'),dataEfeitos:valor('dataEfeitos'),
     prazoTipo:document.getElementById("prazoTipo").value,
     prazoData:document.getElementById("prazoData").value,
     prazoLivre:document.getElementById("prazoLivre").value.trim(),
@@ -864,8 +875,8 @@ function registerChange(){
     return;
   }
 
-  if(!dados.dataNorma || ((dados.prazoTipo==="inicio_vigencia" || dados.prazoTipo==="producao_efeitos") && !dados.prazoData)){
-    alert("Confirme a data da norma e a data de vigência ou efeitos antes de registrar.");return;
+  if(!dados.dataNorma || !dados.dataPublicacao || !dados.dataVigencia || dados.dataPublicacao<dados.dataNorma || (dados.prazoTipo==="producao_efeitos" && !dados.dataEfeitos)){
+    alert("Confirme sanção, publicação (não anterior à sanção), vigência e efeitos, se aplicável.");return;
   }
   if(dados.operacao==="acrescimo" && (displayDevices().some(d=>d.id===dados.novoId) || changes.some(c=>c.id!==editingChangeId && c.novoId===dados.novoId))){alert("O ID acrescentado já existe.");return;}
   if(!confirm("Confirma o registro deste vide e a atualização da consolidação?"))return;
@@ -905,6 +916,7 @@ function editChange(id){
   document.getElementById("complementoNorma").value=ch.complemento||"";
   document.getElementById("anoNorma").value=ch.ano||"";
   document.getElementById("dataNorma").value=ch.dataNorma||"";
+  definir('dataPublicacao',ch.dataPublicacao);definir('criterioVigencia',ch.criterioVigencia||'manual');definir('diasVigencia',ch.diasVigencia);definir('dataVigencia',ch.dataVigencia||(ch.prazoTipo==='inicio_vigencia'?ch.prazoData:''));definir('dataEfeitos',ch.dataEfeitos||(ch.prazoTipo==='producao_efeitos'?ch.prazoData:''));
   document.getElementById("prazoTipo").value=ch.prazoTipo||"inicio_vigencia";
   document.getElementById("prazoData").value=ch.prazoData||ch.vigencia||"";
   document.getElementById("prazoLivre").value=ch.prazoLivre||"";
@@ -937,6 +949,7 @@ function clearChangeForm(){
   document.getElementById("complementoNorma").value="";
   document.getElementById("anoNorma").value="";
   document.getElementById("dataNorma").value="";
+  for(const id of ['dataPublicacao','diasVigencia','dataVigencia','dataEfeitos'])definir(id,'');definir('criterioVigencia','manual');
   document.getElementById("prazoTipo").value="inicio_vigencia";
   document.getElementById("prazoData").value="";
   document.getElementById("prazoLivre").value="";
@@ -975,7 +988,7 @@ function renderChanges(){
         ch.prazoTipo==="livre" && ch.prazoLivre ? ch.prazoLivre :
         ch.vigencia ? fmtDate(ch.vigencia) : "não informado"
       )}</div>
-      ${ch.novoTexto?`<div class="text">${esc(ch.novoTexto)}</div>`:""}
+      ${!dataAlteracao(ch)?`<div class="notice">Datas pendentes de conferência — não incluído na consolidação. Edite o vide.</div>`:""}${ch.novoTexto?`<div class="text">${esc(ch.novoTexto)}</div>`:""}
       ${nota?`<div class="note">${esc(nota)}</div>`:""}
       <div style="margin-top:8px;display:flex;gap:8px">
         <button class="btn small" onclick="editChange('${ch.id}')">Editar</button>
@@ -1005,7 +1018,7 @@ function buildVersions(){
     }];
   });
 
-  [...changes].sort((a,b)=>(dataAlteracao(a)||"0000").localeCompare(dataAlteracao(b)||"0000")).forEach(ch=>{
+  changes.filter(c=>dataAlteracao(c)).sort((a,b)=>(dataAlteracao(a)||"0000").localeCompare(dataAlteracao(b)||"0000")).forEach(ch=>{
     const op=operationForChange(ch);
     if(op==="revogacao_total") return;
 
@@ -1038,7 +1051,7 @@ function buildVersions(){
       const dataEfetiva=dataAlteracao(ch);
       if(dataEfetiva)cur.end=prevDay(dataEfetiva);
       cur.revokedBy=ch;
-      cur.revokedAt=ch.vigencia||"";
+      cur.revokedAt=dataAlteracao(ch);
       cur.noteType=noteType;
 
     }else if(op==="acrescimo"){
@@ -1086,12 +1099,12 @@ function revogacaoTotalAplicavel(date){
   if(!totais.length) return null;
 
   // Sem data estruturada, a alteração é considerada imediata no protótipo.
-  return [...totais].reverse().find(ch=>!dataAlteracao(ch) || date>=dataAlteracao(ch)) || null;
+  return [...totais].reverse().find(ch=>dataAlteracao(ch) && date>=dataAlteracao(ch)) || null;
 }
 
 function prazoAplicavelAte(ch,date){
   const d=dataAlteracao(ch);
-  return !d || date==="9999-12-31" || d<=date;
+  return !!d && (date==="9999-12-31" || d<=date);
 }
 
 function alteracoesDisponiveisAte(date){
@@ -1295,9 +1308,14 @@ function selectAlteringNorm(encodedKey){
 }
 
 function renderPortal(){
-  const date=document.getElementById("consultaData").value||"9999-12-31",
+  const date=document.getElementById("consultaData").value||new Date().toLocaleDateString("sv-SE"),
         multi=document.getElementById("multiMode").checked;
 
+  const inicioBase=valor('baseEfeitos')||valor('baseVigencia');
+  if(estrutura.dispositivos.length&&(!valor('basePublicacao')||!valor('baseVigencia')||date<inicioBase)){
+    document.getElementById('portalView').innerHTML='<p>'+(!valor('basePublicacao')||!valor('baseVigencia')?'Confirme a publicação e vigência da norma-base.':'Norma-base ainda não aplicável nesta data.')+'</p>';
+    document.getElementById('versionSelector').innerHTML='';document.getElementById('alteringSelector').innerHTML='';document.getElementById('portalStatus').textContent='Consulta: '+fmtDate(date);return;
+  }
   renderAlteringSelector();
   const versoesDisponiveis=renderVersionSelector(date);
 
@@ -1312,7 +1330,7 @@ function renderPortal(){
   }
 
   const originalChanges=changes;
-  changes=selectedChanges;
+  changes=selectedChanges.filter(c=>prazoAplicavelAte(c,date));
 
   const map=buildVersions();
 
@@ -1597,10 +1615,11 @@ function analisarAlteradora(){
  const fecho=texto.match(/(?:Belo Horizonte|Palácio[^,]*),\s*(?:aos?\s+)?(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
  const mes=fecho?MESES.indexOf(fecho[2].toLowerCase())+1:0;
  for(const c of r.resultados){if(!c.numero&&metaArquivo){c.tipoNorma=metaArquivo.tipo;c.numero=metaArquivo.numero;c.ano=metaArquivo.ano;}if(!c.dataNorma&&mes&&fecho[3]===c.ano)c.dataNorma=`${fecho[3]}-${String(mes).padStart(2,'0')}-${fecho[1].padStart(2,'0')}`;}
+ const vig=interpretarVigencia(texto);for(const c of r.resultados){Object.assign(c,vig);if(vig.dataEfeitos)c.prazoTipo='producao_efeitos';}
  sugestoes=r.resultados;sugestaoAtiva=null;status.textContent=`${sugestoes.length} sugestão(ões). ${r.avisos.join(' | ')}`;renderSugestoes();
 }
 function renderSugestoes(){document.getElementById('sugestoes').innerHTML=sugestoes.map((c,i)=>`<div class="card"><div class="title">${esc(c.comentario)} — art. ${esc(c.artigoAlterador)} da alteradora</div><div class="meta">Destino: ${esc(c.target||'Norma inteira')} ${esc(c.novoId||'')} · ${esc(c.criterio)}</div><div class="text">${esc(c.novoTexto||c.fonte)}</div><button class="btn small" ${c.registrada?'disabled':''} onclick="revisarSugestao(${i})">${c.registrada?'Registrada':'Conferir vide'}</button></div>`).join('');}
-function revisarSugestao(i){const c=sugestoes[i];if(!c||c.registrada)return;cancelEditChange();sugestaoAtiva=i;const campos={tipoNorma:c.tipoNorma,numeroNorma:c.numero,anoNorma:c.ano,dataNorma:c.dataNorma,prazoTipo:c.prazoTipo,prazoData:c.prazoData,artigoAlterador:c.artigoAlterador,complementoArtigo:c.complementoArtigo,parteArtigo:c.parteArtigo,comentario:c.comentario,artigosAlterados:c.artigosAlterados,novoId:c.novoId,novoRotulo:c.novoRotulo,novoTipo:c.novoTipo,novoTexto:c.novoTexto};for(const [id,v] of Object.entries(campos)){if(v!=null)document.getElementById(id).value=v;}switchTab('alteracao');refreshTargets();document.getElementById('targetDevice').value=c.target||'';toggleFields();togglePrazoFields();if(c.target&&!document.getElementById('targetDevice').value)alert('Alvo não localizado na norma-base. Confira manualmente.');window.scrollTo({top:0,behavior:'smooth'});}
+function revisarSugestao(i){const c=sugestoes[i];if(!c||c.registrada)return;cancelEditChange();sugestaoAtiva=i;const campos={tipoNorma:c.tipoNorma,numeroNorma:c.numero,anoNorma:c.ano,dataNorma:c.dataNorma,prazoTipo:c.prazoTipo,prazoData:c.prazoData,criterioVigencia:c.criterioVigencia,diasVigencia:c.diasVigencia,dataVigencia:c.dataVigencia,dataEfeitos:c.dataEfeitos,artigoAlterador:c.artigoAlterador,complementoArtigo:c.complementoArtigo,parteArtigo:c.parteArtigo,comentario:c.comentario,artigosAlterados:c.artigosAlterados,novoId:c.novoId,novoRotulo:c.novoRotulo,novoTipo:c.novoTipo,novoTexto:c.novoTexto};for(const [id,v] of Object.entries(campos)){if(v!=null)document.getElementById(id).value=v;}switchTab('alteracao');refreshTargets();document.getElementById('targetDevice').value=c.target||'';toggleFields();togglePrazoFields();if(c.target&&!document.getElementById('targetDevice').value)alert('Alvo não localizado na norma-base. Confira manualmente.');window.scrollTo({top:0,behavior:'smooth'});}
 
 document.getElementById('baseTipo').innerHTML='<option value="">Selecione</option>'+Object.keys(GENERO_TIPO_NORMA).map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
 document.querySelectorAll(".side-nav .tabbtn").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
