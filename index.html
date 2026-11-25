@@ -117,7 +117,9 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
       <input id="odtFile" type="file" accept=".odt">
       <div class="actions" style="margin-top:12px">
         <button class="btn primary" onclick="importarODT()">Importar ODT</button>
+        <button class="btn danger" onclick="novaConsolidacao()">Nova consolidação</button>
       </div>
+      <div class="hint">Os vides são armazenados por norma-base. Registros antigos sem vínculo não são carregados automaticamente.</div>
       <div id="status" class="info" style="margin-top:12px">Selecione um arquivo ODT.</div>
       <pre id="diagnostico" style="background:#f8fafc;color:#334155;border:1px solid #d5dce5;max-height:180px"></pre>
     </div>
@@ -281,7 +283,7 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
       </div>
 
       <hr>
-      <p class="section-title">Alterações cadastradas</p>
+      <div class="actions" style="justify-content:space-between;align-items:center"><p class="section-title">Alterações cadastradas</p><button class="btn danger" onclick="excluirTodasAlteracoes()">Excluir todas as alterações</button></div>
       <div id="changeList"></div>
     </div>
   </section>
@@ -357,12 +359,56 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
 </div>
 <script>
 let estrutura={ementa:"",preambulo:[],dispositivos:[],fecho:[],assinaturas:[]};
-let changes=JSON.parse(localStorage.getItem("integrado_changes")||"[]");
+let changes=[];
+let chaveBaseAtiva=null;
 let editingChangeId=null;
 let sugestoes=[], sugestaoAtiva=null;
 let logs=[];
 let selectedPortalVersion="latest";
 let selectedAlteringKey=null;
+
+
+function chaveDaBase(){
+ const tipo=valor('baseTipo'), numero=valor('baseNumero').trim(), data=valor('baseSancao');
+ if(!estrutura.dispositivos.length || !tipo || !/^\d+(?:\.\d{3})*$/.test(numero) || !data)return null;
+ return 'integrado_changes_v6:'+JSON.stringify([tipo,numero.replace(/\./g,'').replace(/^0+(?=\d)/,''),data.slice(0,4)]);
+}
+function salvarVidesDaBase(){
+ if(chaveBaseAtiva)localStorage.setItem(chaveBaseAtiva,JSON.stringify(changes));
+}
+function limparEntradaAlteradora(){
+ sugestoes=[];sugestaoAtiva=null;
+ for(const id of ['alteradoraFile','alteradoraTexto'])definir(id,'');
+ document.getElementById('alteradoraStatus').textContent='';renderSugestoes();
+}
+function atualizarVistasConsolidacao(){
+ selectedPortalVersion='latest';selectedAlteringKey=null;
+ refreshTargets();renderChanges();renderVersions();renderPortal();
+}
+function sincronizarBase(){
+ const chave=chaveDaBase();if(chave===chaveBaseAtiva)return;
+ chaveBaseAtiva=chave;changes=[];
+ if(chave){try{const v=JSON.parse(localStorage.getItem(chave)||'[]');if(Array.isArray(v))changes=v;}catch(e){alert('Não foi possível ler os vides armazenados desta norma.');}}
+ limparEntradaAlteradora();cancelEditChange();atualizarVistasConsolidacao();
+}
+function excluirTodasAlteracoes(){
+ if(!changes.length){alert('Nenhuma alteração cadastrada para a norma-base atual.');return;}
+ if(!confirm('Excluir definitivamente todos os vides da norma-base atual? O texto original será preservado.'))return;
+ changes=[];if(chaveBaseAtiva)localStorage.removeItem(chaveBaseAtiva);
+ sugestoes.forEach(c=>delete c.registrada);renderSugestoes();cancelEditChange();atualizarVistasConsolidacao();
+}
+function novaConsolidacao(){
+ if(!confirm('Iniciar nova consolidação? Os vides da norma-base atual serão excluídos definitivamente e os demais registros serão preservados.'))return;
+ if(chaveBaseAtiva)localStorage.removeItem(chaveBaseAtiva);
+ changes=[];chaveBaseAtiva=null;
+ estrutura={ementa:'',preambulo:[],dispositivos:[],fecho:[],assinaturas:[]};
+ for(const id of ['odtFile','baseTipo','baseNumero','baseSancao','basePublicacao','baseDias','baseVigencia','baseEfeitos','normaTitulo','ementa','consultaData'])definir(id,'');
+ definir('baseCriterio','publicacao');limparEntradaAlteradora();cancelEditChange();logs=[];
+ document.getElementById('diagnostico').textContent='';
+ const status=document.getElementById('status');status.className='info';status.textContent='Selecione um arquivo ODT.';
+ document.getElementById('devices').textContent='Nenhum arquivo importado.';
+ atualizarPrazoBase();atualizarVistasConsolidacao();atualizarLexML();switchTab('importar');
+}
 
 function log(msg){
   logs.push(msg);
@@ -415,6 +461,8 @@ async function importarODT(){
     const buffer=await file.arrayBuffer(); log("Arquivo lido pelo navegador.");
     const contentXml=await extrairArquivoDoZip(buffer,"content.xml"); log(`content.xml extraído: ${contentXml.length} caracteres.`);
     interpretarContentXml(contentXml);
+    limparEntradaAlteradora();
+    cancelEditChange();
     const identidadeArquivo=identidadeNomeArquivo(file.name);
     preencherIdentificacaoBase(identidadeArquivo);
     const xmlBase=new DOMParser().parseFromString(contentXml,'application/xml');const textoBase=[...xmlBase.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:text:1.0','p')].map(textoElemento).join('\n');const vb=interpretarVigencia(textoBase);
@@ -860,6 +908,7 @@ function collectChangeForm(){
 }
 
 function registerChange(){
+  if(!chaveBaseAtiva || !estrutura.dispositivos.length){alert("Importe e identifique a norma-base antes de registrar o vide.");return;}
   const dados=collectChangeForm();
 
   if(!dados.numero||!dados.ano){
@@ -902,7 +951,7 @@ function registerChange(){
   if(sugestaoAtiva!==null){sugestoes[sugestaoAtiva].registrada=true;sugestaoAtiva=null;renderSugestoes();}
   selectedPortalVersion="latest";selectedAlteringKey=null;
   const estavaEditando=!!editingChangeId;
-  localStorage.setItem("integrado_changes",JSON.stringify(changes));
+  salvarVidesDaBase();
   cancelEditChange(false);
   renderChanges();
   renderVersions();
@@ -1003,7 +1052,7 @@ function renderChanges(){
       </div></div>`;
   }).join("");
 }
-function removeChange(id){changes=changes.filter(c=>c.id!==id);localStorage.setItem("integrado_changes",JSON.stringify(changes));renderChanges();renderVersions();renderPortal()}
+function removeChange(id){changes=changes.filter(c=>c.id!==id);salvarVidesDaBase();renderChanges();renderVersions();renderPortal()}
 
 function buildVersions(){
   const map={};
@@ -1565,9 +1614,10 @@ function atualizarIdentificacaoBase(){
  const numero=document.getElementById('baseNumero').value.trim();
  const data=document.getElementById('baseSancao').value;
  const campo=document.getElementById('normaTitulo');
- if(!tipo||!/^\d+(?:\.\d{3})*$/.test(numero)||!data){campo.value='';return;}
+ if(!tipo||!/^\d+(?:\.\d{3})*$/.test(numero)||!data){campo.value='';sincronizarBase();return;}
  const [ano,mes,dia]=data.split('-').map(Number);
  campo.value=`${tipo} nº ${Number(numero.replace(/\./g,'')).toLocaleString('pt-BR')}, de ${dia===1?'1º':dia}/${mes}/${ano}`;
+ sincronizarBase();
 }
 function preencherIdentificacaoBase(meta){
  document.getElementById('baseTipo').value=meta?.tipo||'';
