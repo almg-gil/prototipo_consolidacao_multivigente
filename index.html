@@ -127,11 +127,11 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
     <div class="panel">
       <p class="section-title">Texto estruturado e editável</p>
       <div class="grid" style="margin-bottom:14px">
-        <div class="f6">
-          <label>Identificação da norma</label>
-          <input id="normaTitulo" placeholder="Ex.: Lei nº 25.292, de 10/6/2025">
-        </div>
-        <div class="f6">
+        <div class="f4"><label>Tipo da norma</label><select id="baseTipo" onchange="atualizarIdentificacaoBase()"></select></div>
+        <div class="f4"><label>Número</label><input id="baseNumero" inputmode="numeric" oninput="atualizarIdentificacaoBase()"></div>
+        <div class="f4"><label>Data de sanção</label><input id="baseSancao" type="date" onchange="atualizarIdentificacaoBase()"></div>
+        <div class="f12"><label>Identificação da norma (gerada automaticamente)</label><input id="normaTitulo" readonly placeholder="Preencha tipo, número e data de sanção"></div>
+        <div class="f12">
           <label>Ementa</label>
           <input id="ementa" oninput="estrutura.ementa=this.value">
         </div>
@@ -406,7 +406,7 @@ async function importarODT(){
     const contentXml=await extrairArquivoDoZip(buffer,"content.xml"); log(`content.xml extraído: ${contentXml.length} caracteres.`);
     interpretarContentXml(contentXml);
     const identidadeArquivo=identidadeNomeArquivo(file.name);
-    document.getElementById('normaTitulo').value=identidadeArquivo ? tituloIdentidade(identidadeArquivo) : '';
+    preencherIdentificacaoBase(identidadeArquivo);
     log('Identificação: '+(document.getElementById('normaTitulo').value||'preencher manualmente'));
     log(`Estrutura interpretada: ${estrutura.dispositivos.length} artigo(s).`);
     renderEstruturaEditavel(); refreshTargets(); atualizarLexML(); renderChanges(); renderVersions(); renderPortal();
@@ -1525,16 +1525,33 @@ function compararIds(a,b){
 async function lerAlteradora(){try{const f=document.getElementById('alteradoraFile').files[0];if(!f)throw Error('Selecione um ODT.');const xml=await extrairArquivoDoZip(await f.arrayBuffer(),'content.xml');const doc=new DOMParser().parseFromString(xml,'application/xml');if(doc.querySelector('parsererror'))throw Error('XML inválido.');document.getElementById('alteradoraTexto').value=[...doc.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:text:1.0','p')].map(textoElemento).filter(Boolean).join('\n');analisarAlteradora();}catch(e){document.getElementById('alteradoraStatus').textContent=e.message;}}
 const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function identidadeNorma(t){
- const m=t.match(/\b(Lei Complementar|Lei Delegada|Emenda à Constituição|Lei|Decreto-Lei|Decreto|Resolução|Portaria|Deliberação)\s+n[º°o.]\s*([\d.]+)\s*(?:,?\s*de\s+(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})|,?\s*de\s+(\d{1,2})[º°]?\/(\d{1,2})\/(\d{4})|\/(\d{4})|,?\s*de\s+(\d{4}))/i);
+ const m=t.match(/\b(Ato das disposições constitucionais transitórias|Decisão Normativa da Presidência|Decisão Conjunta|Decisão|Decreto com Numeração Especial|Decreto sem Número|Deliberação do Comitê Extraordinário Covid-19|Instrução Normativa da Diretoria-Geral|Lei Complementar|Lei Delegada|Lei Constitucional|Lei Adicional|Emenda à Constituição|Lei|Decreto-Lei|Decreto|Resolução sem Número|Resolução|Portaria Conjunta|Portaria sem Número|Portaria|Deliberação|Constituição|Ordem de Serviço)\s+n[º°o.]\s*([\d.]+)\s*(?:,?\s*de\s+(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})|,?\s*de\s+(\d{1,2})[º°]?\/(\d{1,2})\/(\d{4})|\/(\d{4})|,?\s*de\s+(\d{4}))/i);
  if(!m)return null;const ano=m[5]||m[8]||m[9]||m[10];const mes=m[4]?MESES.indexOf(m[4].toLowerCase())+1:Number(m[7]||0);const dia=Number(m[3]||m[6]||0);return {tipo:m[1],numero:m[2].replace(/\./g,''),ano,data:mes&&dia?`${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`:''};
 }
 function identidadeNomeArquivo(nome){
- const m=String(nome||'').match(/^(LEI|LCP|DEC|RAL|DLB|PRT|EMC)[ _-]+([\d.]+)[ _-]+(\d{4})\.odt$/i);
+ const m=String(nome||'').match(/^(LEI|LCP|LCD|LDL|DEC|DNE|DSN|RAL|RES|DLB|PRT|EMC)[ _-]+([\d.]+)[ _-]+(\d{4})\.odt$/i);
  if(!m)return null;
  const tipos={LEI:'Lei',LCP:'Lei Complementar',LCD:'Lei Constitucional',LDL:'Lei Delegada',DEC:'Decreto',DNE:'Decreto com Numeração Especial',DSN:'Decreto sem Número',RAL:'Resolução',RES:'Resolução',DLB:'Deliberação',PRT:'Portaria',EMC:'Emenda à Constituição'};
  return {tipo:tipos[m[1].toUpperCase()],numero:m[2].replace(/\./g,''),ano:m[3],data:''};
 }
 function tituloIdentidade(m){return `${m.tipo} nº ${Number(m.numero).toLocaleString('pt-BR')}/${m.ano}`;}
+function atualizarIdentificacaoBase(){
+ const tipo=document.getElementById('baseTipo').value;
+ const numero=document.getElementById('baseNumero').value.trim();
+ const data=document.getElementById('baseSancao').value;
+ const campo=document.getElementById('normaTitulo');
+ if(!tipo||!/^\d+(?:\.\d{3})*$/.test(numero)||!data){campo.value='';return;}
+ const [ano,mes,dia]=data.split('-').map(Number);
+ campo.value=`${tipo} nº ${Number(numero.replace(/\./g,'')).toLocaleString('pt-BR')}, de ${dia===1?'1º':dia}/${mes}/${ano}`;
+}
+function preencherIdentificacaoBase(meta){
+ document.getElementById('baseTipo').value=meta?.tipo||'';
+ document.getElementById('baseNumero').value=meta?.numero||'';
+ const f=(estrutura.fecho||[]).join(' ').match(/(?:Belo Horizonte|Palácio[^,]*),\s*(?:aos?\s+)?(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
+ const mes=f?MESES.indexOf(f[2].toLowerCase())+1:0;
+ document.getElementById('baseSancao').value=meta?.data||(mes&&(!meta?.ano||meta.ano===f[3])?`${f[3]}-${String(mes).padStart(2,'0')}-${f[1].padStart(2,'0')}`:'');
+ atualizarIdentificacaoBase();
+}
 function mesmaNorma(a,b){return !!a&&!!b&&a.tipo.toLowerCase()===b.tipo.toLowerCase()&&a.numero===b.numero&&a.ano===b.ano;}
 function separarArtigosAlteradores(texto){
  const linhas=texto.replace(/\r/g,'').split('\n').map(x=>x.trim()).filter(Boolean);let atual=null,aberto=false;const arts=[];
@@ -1572,7 +1589,7 @@ function propostasDoTexto(texto,base){
 function analisarAlteradora(){
  const base=identidadeNorma(document.getElementById('normaTitulo').value);const status=document.getElementById('alteradoraStatus');
  if(!estrutura.dispositivos.length){status.textContent='Nenhuma norma-base importada. Importe primeiro o ODT da norma a consolidar.';return;}
- if(!base){status.textContent='Identificação da norma-base ausente ou inválida. Abra Texto estruturado e informe, por exemplo, Lei nº 13.799/2000.';return;}
+ if(!base){status.textContent='Identificação da norma-base ausente ou inválida. Abra Texto estruturado e confira tipo, número e data de sanção.';return;}
  const texto=document.getElementById('alteradoraTexto').value;if(!texto.trim()){status.textContent='Informe o texto da norma alteradora.';return;}
  const r=propostasDoTexto(texto,base);
  const arquivo=document.getElementById('alteradoraFile').files[0];
@@ -1585,6 +1602,7 @@ function analisarAlteradora(){
 function renderSugestoes(){document.getElementById('sugestoes').innerHTML=sugestoes.map((c,i)=>`<div class="card"><div class="title">${esc(c.comentario)} — art. ${esc(c.artigoAlterador)} da alteradora</div><div class="meta">Destino: ${esc(c.target||'Norma inteira')} ${esc(c.novoId||'')} · ${esc(c.criterio)}</div><div class="text">${esc(c.novoTexto||c.fonte)}</div><button class="btn small" ${c.registrada?'disabled':''} onclick="revisarSugestao(${i})">${c.registrada?'Registrada':'Conferir vide'}</button></div>`).join('');}
 function revisarSugestao(i){const c=sugestoes[i];if(!c||c.registrada)return;cancelEditChange();sugestaoAtiva=i;const campos={tipoNorma:c.tipoNorma,numeroNorma:c.numero,anoNorma:c.ano,dataNorma:c.dataNorma,prazoTipo:c.prazoTipo,prazoData:c.prazoData,artigoAlterador:c.artigoAlterador,complementoArtigo:c.complementoArtigo,parteArtigo:c.parteArtigo,comentario:c.comentario,artigosAlterados:c.artigosAlterados,novoId:c.novoId,novoRotulo:c.novoRotulo,novoTipo:c.novoTipo,novoTexto:c.novoTexto};for(const [id,v] of Object.entries(campos)){if(v!=null)document.getElementById(id).value=v;}switchTab('alteracao');refreshTargets();document.getElementById('targetDevice').value=c.target||'';toggleFields();togglePrazoFields();if(c.target&&!document.getElementById('targetDevice').value)alert('Alvo não localizado na norma-base. Confira manualmente.');window.scrollTo({top:0,behavior:'smooth'});}
 
+document.getElementById('baseTipo').innerHTML='<option value="">Selecione</option>'+Object.keys(GENERO_TIPO_NORMA).map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
 document.querySelectorAll(".side-nav .tabbtn").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
 if(localStorage.getItem("sidebarCollapsed")==="1") document.getElementById("sidebar").classList.add("collapsed");
 renderChanges();renderVersions();toggleFields();togglePrazoFields();renderPortal();
