@@ -131,10 +131,10 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
         <div class="f4"><label>Número</label><input id="baseNumero" inputmode="numeric" oninput="atualizarIdentificacaoBase()"></div>
         <div class="f4"><label>Data de sanção</label><input id="baseSancao" type="date" onchange="atualizarIdentificacaoBase()"></div>
         <div class="f4"><label>Data de publicação</label><input id="basePublicacao" type="date" onchange="atualizarPrazoBase()"></div>
-<div class="f4"><label>Critério de vigência</label><select id="baseCriterio" onchange="atualizarPrazoBase()"><option value="manual">Data específica / confirmar</option><option value="publicacao">Na publicação</option><option value="dias">Após número de dias</option></select></div>
-<div class="f4"><label>Dias de vacância</label><input id="baseDias" type="number" min="1" onchange="atualizarPrazoBase()"></div>
-<div class="f4"><label>Início da vigência</label><input id="baseVigencia" type="date" onchange="renderPortal()"></div>
-<div class="f4"><label>Produção de efeitos (se aplicável)</label><input id="baseEfeitos" type="date" onchange="renderPortal()"></div>
+<div class="f4"><label>Critério de vigência</label><select id="baseCriterio" onchange="definir('baseVigencia','');definir('baseEfeitos','');atualizarPrazoBase()"><option value="publicacao">Vigência na publicação</option><option value="manual">Início da Vigência</option><option value="efeitos">Início da produção de efeitos</option></select></div>
+<div class="f4" id="wrap_baseDias" style="display:none"><label>Dias de vacância</label><input id="baseDias" type="number" min="1" onchange="atualizarPrazoBase()"></div>
+<div class="f4" id="wrap_baseVigencia" style="display:none"><label>Início da vigência</label><input id="baseVigencia" type="date" onchange="atualizarPrazoBase()"></div>
+<div class="f4" id="wrap_baseEfeitos" style="display:none"><label>Produção de efeitos (se aplicável)</label><input id="baseEfeitos" type="date" onchange="renderPortal()"></div>
 <div class="f12"><label>Identificação da norma (gerada automaticamente)</label><input id="normaTitulo" readonly placeholder="Preencha tipo, número e data de sanção"></div>
         <div class="f12">
           <label>Ementa</label>
@@ -195,11 +195,11 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
         <div class="f3"><label>Data de sanção da norma alteradora</label><input type="date" id="dataNorma"></div>
 
 <div class="f3"><label>Data de publicação</label><input type="date" id="dataPublicacao" onchange="togglePrazoFields()"></div>
-<div class="f3"><label>Critério de vigência</label><select id="criterioVigencia" onchange="togglePrazoFields()"><option value="manual">Data específica / confirmar</option><option value="publicacao">Na publicação</option><option value="dias">Após número de dias</option></select></div>
-<div class="f3"><label>Dias de vacância</label><input id="diasVigencia" type="number" min="1" onchange="togglePrazoFields()"></div>
-<div class="f3"><label>Início da vigência</label><input type="date" id="dataVigencia" onchange="togglePrazoFields()"></div>
-<div class="f3"><label>Produção de efeitos (se aplicável)</label><input type="date" id="dataEfeitos" onchange="togglePrazoFields()"></div>
-        <div class="f3">
+<div class="f3"><label>Critério de vigência</label><select id="criterioVigencia" onchange="definir('dataVigencia','');definir('dataEfeitos','');togglePrazoFields()"><option value="publicacao">Vigência na publicação</option><option value="manual">Início da Vigência</option><option value="efeitos">Início da produção de efeitos</option></select></div>
+<div class="f3" id="wrap_diasVigencia" style="display:none"><label>Dias de vacância</label><input id="diasVigencia" type="number" min="1" onchange="togglePrazoFields()"></div>
+<div class="f3" id="wrap_dataVigencia" style="display:none"><label>Início da vigência</label><input type="date" id="dataVigencia" onchange="togglePrazoFields()"></div>
+<div class="f3" id="wrap_dataEfeitos" style="display:none"><label>Produção de efeitos (se aplicável)</label><input type="date" id="dataEfeitos" onchange="togglePrazoFields()"></div>
+        <div class="f3" id="wrap_prazoTipo" style="display:none">
           <label>Prazo para alteração (nota de vide)</label>
           <select id="prazoTipo" onchange="togglePrazoFields()">
             <option value="inicio_vigencia">Início da vigência</option>
@@ -633,16 +633,23 @@ function valor(id){return document.getElementById(id).value;}
 function definir(id,v){document.getElementById(id).value=v||'';}
 function somarDias(data,dias){if(!data||!Number.isInteger(Number(dias))||Number(dias)<1)return '';const d=new Date(data+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+Number(dias));return d.toISOString().slice(0,10);}
 function calcularVigencia(criterio,pub,dias,manual){return criterio==='publicacao'?pub:criterio==='dias'?somarDias(pub,dias):manual;}
-function atualizarPrazoBase(){const c=valor('baseCriterio');if(c!=='manual')definir('baseVigencia',calcularVigencia(c,valor('basePublicacao'),valor('baseDias'),''));document.getElementById('baseVigencia').readOnly=c!=='manual';renderPortal();}
+function mostrarCampo(id,sim){document.getElementById('wrap_'+id).style.display=sim?'block':'none';}
+function atualizarPrazoBase(){
+ const c=valor('baseCriterio');
+ mostrarCampo('baseVigencia',c==='manual');mostrarCampo('baseEfeitos',c==='efeitos');
+ if(c!=='manual')definir('baseVigencia',valor('basePublicacao'));
+ if(c!=='efeitos')definir('baseEfeitos','');
+ renderPortal();
+}
 function togglePrazoFields(){
- const c=valor('criterioVigencia'), tipo=valor('prazoTipo');
- if(c!=='manual')definir('dataVigencia',calcularVigencia(c,valor('dataPublicacao'),valor('diasVigencia'),''));
- document.getElementById('dataVigencia').readOnly=c!=='manual';
- definir('prazoData',tipo==='producao_efeitos'?valor('dataEfeitos'):valor('dataVigencia'));
- document.getElementById('prazoData').readOnly=true;
- document.getElementById('prazoDataWrap').style.display=tipo==='livre'?'none':'block';
- document.getElementById('prazoLivreWrap').style.display=tipo==='livre'?'block':'none';
- document.getElementById('prazoDataLabel').textContent=tipo==='producao_efeitos'?'Data de produção de efeitos':'Data de início da vigência';
+ const c=valor('criterioVigencia');
+ mostrarCampo('dataVigencia',c==='manual');mostrarCampo('dataEfeitos',c==='efeitos');
+ if(c!=='manual')definir('dataVigencia',valor('dataPublicacao'));
+ if(c!=='efeitos')definir('dataEfeitos','');
+ definir('prazoTipo',c==='efeitos'?'producao_efeitos':'inicio_vigencia');
+ definir('prazoData',c==='publicacao'?'':c==='efeitos'?valor('dataEfeitos'):valor('dataVigencia'));
+ document.getElementById('prazoDataWrap').style.display='none';
+ document.getElementById('prazoLivreWrap').style.display='none';
 }
 function dataAlteracao(ch){
  if(ch.dataVigencia){if(!ch.dataPublicacao)return '';return ch.dataEfeitos||ch.dataVigencia;}
@@ -655,8 +662,8 @@ function interpretarVigencia(texto){
  const data=fragmento=>{const m=fragmento.match(/(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);if(!m)return '';const mes=MESES.indexOf(m[2].toLowerCase())+1;return mes?`${m[3]}-${String(mes).padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
  const partes=t.split(/produz(?:em|indo)? efeitos/i);const v=partes[0]||'', e=partes[1]||'';const dias=v.match(/(?:\((\d+)\)|\b(\d+)|\b(trinta|sessenta|noventa|quarenta e cinco|cento e oitenta))\s+dias\s+(?:após|da|contados)/i);const nums={'trinta':30,'sessenta':60,'noventa':90,'quarenta e cinco':45,'cento e oitenta':180};
  if(complexo)return {criterioVigencia:'manual',diasVigencia:'',dataVigencia:'',dataEfeitos:'',criterio:'Cláusula complexa: conferir por dispositivo'};
- const c=dias?'dias':/na data (?:de sua|da) publicação/i.test(v)?'publicacao':'manual';
- return {criterioVigencia:c,diasVigencia:dias?String(dias[1]||dias[2]||nums[dias[3].toLowerCase()]||''):'',dataVigencia:c==='manual'?data(v):'',dataEfeitos:data(e),criterio:t?'Conferir publicação e vigência: '+t.slice(0,220):'Vigência a confirmar'};
+ const c=data(e)&&/na data (?:de sua|da) publicação/i.test(v)?'efeitos':dias?'manual':/na data (?:de sua|da) publicação/i.test(v)?'publicacao':'manual';
+ return {criterioVigencia:c,diasVigencia:dias?String(dias[1]||dias[2]||nums[dias[3].toLowerCase()]||''):'',dataVigencia:c==='manual'&&!dias?data(v):'',dataEfeitos:data(e),criterio:t?'Conferir publicação e vigência: '+t.slice(0,220):'Vigência a confirmar'};
 }
 function complementoPrazoNota(ch){
   if(ch.prazoTipo==="inicio_vigencia" && ch.prazoData){
@@ -916,7 +923,7 @@ function editChange(id){
   document.getElementById("complementoNorma").value=ch.complemento||"";
   document.getElementById("anoNorma").value=ch.ano||"";
   document.getElementById("dataNorma").value=ch.dataNorma||"";
-  definir('dataPublicacao',ch.dataPublicacao);definir('criterioVigencia',ch.criterioVigencia||'manual');definir('diasVigencia',ch.diasVigencia);definir('dataVigencia',ch.dataVigencia||(ch.prazoTipo==='inicio_vigencia'?ch.prazoData:''));definir('dataEfeitos',ch.dataEfeitos||(ch.prazoTipo==='producao_efeitos'?ch.prazoData:''));
+  definir('dataPublicacao',ch.dataPublicacao);definir('criterioVigencia',ch.dataEfeitos?'efeitos':ch.criterioVigencia==='publicacao'?'publicacao':'manual');definir('diasVigencia',ch.diasVigencia);definir('dataVigencia',ch.dataVigencia||(ch.prazoTipo==='inicio_vigencia'?ch.prazoData:''));definir('dataEfeitos',ch.dataEfeitos||(ch.prazoTipo==='producao_efeitos'?ch.prazoData:''));
   document.getElementById("prazoTipo").value=ch.prazoTipo||"inicio_vigencia";
   document.getElementById("prazoData").value=ch.prazoData||ch.vigencia||"";
   document.getElementById("prazoLivre").value=ch.prazoLivre||"";
@@ -949,7 +956,7 @@ function clearChangeForm(){
   document.getElementById("complementoNorma").value="";
   document.getElementById("anoNorma").value="";
   document.getElementById("dataNorma").value="";
-  for(const id of ['dataPublicacao','diasVigencia','dataVigencia','dataEfeitos'])definir(id,'');definir('criterioVigencia','manual');
+  for(const id of ['dataPublicacao','diasVigencia','dataVigencia','dataEfeitos'])definir(id,'');definir('criterioVigencia','publicacao');
   document.getElementById("prazoTipo").value="inicio_vigencia";
   document.getElementById("prazoData").value="";
   document.getElementById("prazoLivre").value="";
@@ -1312,8 +1319,8 @@ function renderPortal(){
         multi=document.getElementById("multiMode").checked;
 
   const inicioBase=valor('baseEfeitos')||valor('baseVigencia');
-  if(estrutura.dispositivos.length&&(!valor('basePublicacao')||!valor('baseVigencia')||date<inicioBase)){
-    document.getElementById('portalView').innerHTML='<p>'+(!valor('basePublicacao')||!valor('baseVigencia')?'Confirme a publicação e vigência da norma-base.':'Norma-base ainda não aplicável nesta data.')+'</p>';
+  if(estrutura.dispositivos.length&&(!valor('basePublicacao')||!valor('baseVigencia')||(valor('baseCriterio')==='efeitos'&&!valor('baseEfeitos'))||date<inicioBase)){
+    document.getElementById('portalView').innerHTML='<p>'+(!valor('basePublicacao')||!valor('baseVigencia')||(valor('baseCriterio')==='efeitos'&&!valor('baseEfeitos'))?'Confirme a publicação e vigência da norma-base.':'Norma-base ainda não aplicável nesta data.')+'</p>';
     document.getElementById('versionSelector').innerHTML='';document.getElementById('alteringSelector').innerHTML='';document.getElementById('portalStatus').textContent='Consulta: '+fmtDate(date);return;
   }
   renderAlteringSelector();
@@ -1624,7 +1631,7 @@ function revisarSugestao(i){const c=sugestoes[i];if(!c||c.registrada)return;canc
 document.getElementById('baseTipo').innerHTML='<option value="">Selecione</option>'+Object.keys(GENERO_TIPO_NORMA).map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
 document.querySelectorAll(".side-nav .tabbtn").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
 if(localStorage.getItem("sidebarCollapsed")==="1") document.getElementById("sidebar").classList.add("collapsed");
-renderChanges();renderVersions();toggleFields();togglePrazoFields();renderPortal();
+renderChanges();renderVersions();toggleFields();togglePrazoFields();atualizarPrazoBase();renderPortal();
 </script>
 </body>
 </html>
