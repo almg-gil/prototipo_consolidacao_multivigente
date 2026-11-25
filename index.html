@@ -145,7 +145,7 @@ pre{white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:14px;border-ra
 
   <section id="importarAlteradora" class="tab"><div class="panel">
 <p class="section-title">Importar norma alteradora</p>
-<div class="info">Importe primeiro a norma-base e informe sua identificação na etapa Texto estruturado. Nenhuma sugestão será registrada sem confirmação.</div>
+<div class="info">Importe primeiro a norma-base. Sua identificação será preenchida pelo nome do ODT quando reconhecido; confira em Texto estruturado. Nenhuma sugestão será registrada sem confirmação.</div>
 <label>Arquivo ODT da norma alteradora</label><input id="alteradoraFile" type="file" accept=".odt">
 <label style="margin-top:12px">Ou cole o texto integral (incluindo identificação, se disponível)</label><textarea id="alteradoraTexto" style="min-height:200px"></textarea>
 <div class="actions" style="margin-top:12px"><button class="btn" onclick="lerAlteradora()">Ler ODT</button><button class="btn primary" onclick="analisarAlteradora()">Identificar alterações</button></div>
@@ -404,7 +404,11 @@ async function importarODT(){
     log(`Arquivo: ${file.name} (${file.size} bytes)`);
     const buffer=await file.arrayBuffer(); log("Arquivo lido pelo navegador.");
     const contentXml=await extrairArquivoDoZip(buffer,"content.xml"); log(`content.xml extraído: ${contentXml.length} caracteres.`);
-    interpretarContentXml(contentXml); log(`Estrutura interpretada: ${estrutura.dispositivos.length} artigo(s).`);
+    interpretarContentXml(contentXml);
+    const identidadeArquivo=identidadeNomeArquivo(file.name);
+    document.getElementById('normaTitulo').value=identidadeArquivo ? tituloIdentidade(identidadeArquivo) : '';
+    log('Identificação: '+(document.getElementById('normaTitulo').value||'preencher manualmente'));
+    log(`Estrutura interpretada: ${estrutura.dispositivos.length} artigo(s).`);
     renderEstruturaEditavel(); refreshTargets(); atualizarLexML(); renderChanges(); renderVersions(); renderPortal();
     status.className="ok";
     status.innerHTML=`<b>Importação concluída.</b> ${estrutura.dispositivos.length} artigo(s) identificado(s).`;
@@ -1521,9 +1525,16 @@ function compararIds(a,b){
 async function lerAlteradora(){try{const f=document.getElementById('alteradoraFile').files[0];if(!f)throw Error('Selecione um ODT.');const xml=await extrairArquivoDoZip(await f.arrayBuffer(),'content.xml');const doc=new DOMParser().parseFromString(xml,'application/xml');if(doc.querySelector('parsererror'))throw Error('XML inválido.');document.getElementById('alteradoraTexto').value=[...doc.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:text:1.0','p')].map(textoElemento).filter(Boolean).join('\n');analisarAlteradora();}catch(e){document.getElementById('alteradoraStatus').textContent=e.message;}}
 const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function identidadeNorma(t){
- const m=t.match(/\b(Lei Complementar|Lei Delegada|Lei|Decreto-Lei|Decreto|Resolução|Portaria|Deliberação)\s+n[º°o.]\s*([\d.]+)\s*(?:,?\s*de\s+(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})|,?\s*de\s+(\d{1,2})[º°]?\/(\d{1,2})\/(\d{4})|\/(\d{4})|,?\s*de\s+(\d{4}))/i);
+ const m=t.match(/\b(Lei Complementar|Lei Delegada|Emenda à Constituição|Lei|Decreto-Lei|Decreto|Resolução|Portaria|Deliberação)\s+n[º°o.]\s*([\d.]+)\s*(?:,?\s*de\s+(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})|,?\s*de\s+(\d{1,2})[º°]?\/(\d{1,2})\/(\d{4})|\/(\d{4})|,?\s*de\s+(\d{4}))/i);
  if(!m)return null;const ano=m[5]||m[8]||m[9]||m[10];const mes=m[4]?MESES.indexOf(m[4].toLowerCase())+1:Number(m[7]||0);const dia=Number(m[3]||m[6]||0);return {tipo:m[1],numero:m[2].replace(/\./g,''),ano,data:mes&&dia?`${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`:''};
 }
+function identidadeNomeArquivo(nome){
+ const m=String(nome||'').match(/^(LEI|LCP|DEC|RAL|DLB|PRT|EMC)[ _-]+([\d.]+)[ _-]+(\d{4})\.odt$/i);
+ if(!m)return null;
+ const tipos={LEI:'Lei',LCP:'Lei Complementar',LCD:'Lei Constitucional',LDL:'Lei Delegada',DEC:'Decreto',DNE:'Decreto com Numeração Especial',DSN:'Decreto sem Número',RAL:'Resolução',RES:'Resolução',DLB:'Deliberação',PRT:'Portaria',EMC:'Emenda à Constituição'};
+ return {tipo:tipos[m[1].toUpperCase()],numero:m[2].replace(/\./g,''),ano:m[3],data:''};
+}
+function tituloIdentidade(m){return `${m.tipo} nº ${Number(m.numero).toLocaleString('pt-BR')}/${m.ano}`;}
 function mesmaNorma(a,b){return !!a&&!!b&&a.tipo.toLowerCase()===b.tipo.toLowerCase()&&a.numero===b.numero&&a.ano===b.ano;}
 function separarArtigosAlteradores(texto){
  const linhas=texto.replace(/\r/g,'').split('\n').map(x=>x.trim()).filter(Boolean);let atual=null,aberto=false;const arts=[];
@@ -1560,9 +1571,16 @@ function propostasDoTexto(texto,base){
 }
 function analisarAlteradora(){
  const base=identidadeNorma(document.getElementById('normaTitulo').value);const status=document.getElementById('alteradoraStatus');
- if(!estrutura.dispositivos.length||!base){status.textContent='Importe a norma-base e informe sua identificação completa (tipo, número e ano).';return;}
+ if(!estrutura.dispositivos.length){status.textContent='Nenhuma norma-base importada. Importe primeiro o ODT da norma a consolidar.';return;}
+ if(!base){status.textContent='Identificação da norma-base ausente ou inválida. Abra Texto estruturado e informe, por exemplo, Lei nº 13.799/2000.';return;}
  const texto=document.getElementById('alteradoraTexto').value;if(!texto.trim()){status.textContent='Informe o texto da norma alteradora.';return;}
- const r=propostasDoTexto(texto,base);sugestoes=r.resultados;sugestaoAtiva=null;status.textContent=`${sugestoes.length} sugestão(ões). ${r.avisos.join(' | ')}`;renderSugestoes();
+ const r=propostasDoTexto(texto,base);
+ const arquivo=document.getElementById('alteradoraFile').files[0];
+ const metaArquivo=identidadeNomeArquivo(arquivo?.name);
+ const fecho=texto.match(/(?:Belo Horizonte|Palácio[^,]*),\s*(?:aos?\s+)?(\d{1,2})[º°]?\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
+ const mes=fecho?MESES.indexOf(fecho[2].toLowerCase())+1:0;
+ for(const c of r.resultados){if(!c.numero&&metaArquivo){c.tipoNorma=metaArquivo.tipo;c.numero=metaArquivo.numero;c.ano=metaArquivo.ano;}if(!c.dataNorma&&mes&&fecho[3]===c.ano)c.dataNorma=`${fecho[3]}-${String(mes).padStart(2,'0')}-${fecho[1].padStart(2,'0')}`;}
+ sugestoes=r.resultados;sugestaoAtiva=null;status.textContent=`${sugestoes.length} sugestão(ões). ${r.avisos.join(' | ')}`;renderSugestoes();
 }
 function renderSugestoes(){document.getElementById('sugestoes').innerHTML=sugestoes.map((c,i)=>`<div class="card"><div class="title">${esc(c.comentario)} — art. ${esc(c.artigoAlterador)} da alteradora</div><div class="meta">Destino: ${esc(c.target||'Norma inteira')} ${esc(c.novoId||'')} · ${esc(c.criterio)}</div><div class="text">${esc(c.novoTexto||c.fonte)}</div><button class="btn small" ${c.registrada?'disabled':''} onclick="revisarSugestao(${i})">${c.registrada?'Registrada':'Conferir vide'}</button></div>`).join('');}
 function revisarSugestao(i){const c=sugestoes[i];if(!c||c.registrada)return;cancelEditChange();sugestaoAtiva=i;const campos={tipoNorma:c.tipoNorma,numeroNorma:c.numero,anoNorma:c.ano,dataNorma:c.dataNorma,prazoTipo:c.prazoTipo,prazoData:c.prazoData,artigoAlterador:c.artigoAlterador,complementoArtigo:c.complementoArtigo,parteArtigo:c.parteArtigo,comentario:c.comentario,artigosAlterados:c.artigosAlterados,novoId:c.novoId,novoRotulo:c.novoRotulo,novoTipo:c.novoTipo,novoTexto:c.novoTexto};for(const [id,v] of Object.entries(campos)){if(v!=null)document.getElementById(id).value=v;}switchTab('alteracao');refreshTargets();document.getElementById('targetDevice').value=c.target||'';toggleFields();togglePrazoFields();if(c.target&&!document.getElementById('targetDevice').value)alert('Alvo não localizado na norma-base. Confira manualmente.');window.scrollTo({top:0,behavior:'smooth'});}
